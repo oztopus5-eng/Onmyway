@@ -297,7 +297,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.4.0";
+const VERSION = "1.4.1";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -453,6 +453,7 @@ const DEFAULTS = {
   home: null,               // {lat,lng} learned or set
   geo: {},                  // geocode cache, so we ask once per place
   suggestions: [],          // parsed out of email, waiting on your yes
+  accounts: [],             // addresses of every Google account you've paired
   teams: [],                // [{league,id,name}]
   events: [],               // unified event objects
   routines: [],             // [{id,title,time:"07:20",days:[1,2,3,4,5],place?}]
@@ -714,68 +715,119 @@ const SCOPES = [
   "https://www.googleapis.com/auth/classroom.courses.readonly",
   "https://www.googleapis.com/auth/classroom.coursework.me.readonly"
 ].join(" ");
-let TOKEN = null;
+/** Live access tokens, one per paired account. Held in memory only —
+ *  they expire in about an hour, which is why re-pairing is a normal thing. */
+let ACCOUNTS = [];
+const anyToken = () => ACCOUNTS.length > 0;
 
-function pairGoogle() {
+function pairGoogle(addAnother) {
   if (!S.keys.googleClientId) { toast("Add a Google client ID in Settings first"); return; }
   if (!window.google || !google.accounts) { toast("Google sign-in didn't load — check your connection"); return; }
   const client = google.accounts.oauth2.initTokenClient({
-    client_id: S.keys.googleClientId, scope: SCOPES,
+    client_id: S.keys.googleClientId,
+    scope: SCOPES,
+    prompt: addAnother ? "select_account consent" : "",
     callback: async r => {
       if (r.error) { toast("Pairing cancelled"); return; }
-      TOKEN = r.access_token; S.paired.google = true; save();
-      toast("Google paired — pulling your schedule");
-      await syncGoogle(); renderSettings(); renderHome();
+      const token = r.access_token;
+      let email = null;
+      try {                                   // the primary calendar's id IS the address
+        const cal = await gfetch("https://www.googleapis.com/calendar/v3/calendars/primary", token);
+        email = cal.id;
+      } catch (e) {}
+      if (!email) { try { const g = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", token); email = g.emailAddress; } catch (e) {} }
+      email = email || ("Account " + (ACCOUNTS.length + 1));
+      const existing = ACCOUNTS.findIndex(a => a.email === email);
+      if (existing >= 0) { ACCOUNTS[existing].token = token; toast(email + " reconnected"); }
+      else { ACCOUNTS.push({ email, token }); toast(email + " paired"); }
+      S.accounts = ACCOUNTS.map(a => a.email);
+      S.paired.google = true; save();
+      await syncGoogle();
+      renderSettings(); renderHome();
+      if (SCREEN === "set" && $("sheetHost").innerHTML) openAccounts();
     }
   });
   client.requestAccessToken();
 }
-const gfetch = async url => {
-  const r = await fetch(url, { headers: { Authorization: "Bearer " + TOKEN } });
-  if (!r.ok) throw new Error(r.status); return r.json();
+
+function openAccounts() {
+  Sound.open();
+  const rows = ACCOUNTS.length
+    ? ACCOUNTS.map((a, i) => `<div class="row">
+        <div class="row-ico">${ICONS.google}</div>
+        <div class="row-txt"><div class="row-t">${esc(a.email)}</div>
+        <div class="row-s">${S.events.filter(e => e.account === a.email).length} items syncing</div></div>
+        <button class="pill no" onclick="dropAccount(${i})">Remove</button></div>`).join("")
+    : `<div class="row"><div class="row-txt"><div class="row-s">Nothing paired yet.</div></div></div>`;
+  sheet(`<div class="eyebrow" style="margin-top:0">Paired apps</div><h2>Google accounts</h2>
+    <div class="group" style="margin-top:16px">${rows}</div>
+    <button class="btn full" style="margin-top:16px" onclick="pairGoogle(true)">Add another account</button>
+    <div class="note">Add your school account to pull in Classroom assignments alongside your personal calendar. Each one has to be listed as a test user in Google Cloud, and school-managed accounts are sometimes blocked by the school's admin.</div>
+    <div class="note" style="margin-top:10px">Sign-ins last about an hour. After that, tap an account here to reconnect — that's a limit of doing this without a server.</div>`);
+}
+function dropAccount(i) {
+  const a = ACCOUNTS[i]; if (!a) return;
+  ACCOUNTS.splice(i, 1);
+  S.events = S.events.filter(e => e.account !== a.email);
+  S.suggestions = S.suggestions.filter(e => e.account !== a.email);
+  S.accounts = ACCOUNTS.map(x => x.email);
+  S.paired.google = ACCOUNTS.length > 0;
+  save(); Sound.off();
+  rescheduleAll().then(() => { renderHome(); renderSettings(); openAccounts(); });
+}
+const gfetch = async (url, token) => {
+  const r = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
 };
 
 async function syncGoogle() {
-  if (!TOKEN) return;
+  if (!anyToken()) return;
   const keep = S.events.filter(e => e.src !== "google");
   const found = [];
-  try {
-    const min = new Date().toISOString(), max = new Date(Date.now() + 14 * 864e5).toISOString();
-    const d = await gfetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=" +
-      encodeURIComponent(min) + "&timeMax=" + encodeURIComponent(max) + "&singleEvents=true&orderBy=startTime&maxResults=50");
-    (d.items || []).forEach(it => {
-      const st = it.start && (it.start.dateTime || it.start.date); if (!st) return;
-      found.push({
-        id: "g_" + it.id, src: "google", kind: "meeting",
-        title: it.summary || "Untitled", start: new Date(st).toISOString(),
-        who: (it.attendees || []).filter(a => !a.self).map(a => a.displayName || a.email).slice(0, 3).join(", ") || null,
-        room: (it.location || "").match(/(?:room|rm\.?)\s*([\w\d-]+)/i)?.[1] || null,
-        place: it.location ? { name: it.location } : null,
-        why: (it.description || "").slice(0, 220) || null
-      });
-    });
-  } catch (e) { console.warn("calendar", e); }
-  try {
-    const cs = await gfetch("https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=20");
-    for (const c of (cs.courses || []).slice(0, 8)) {
-      const w = await gfetch("https://classroom.googleapis.com/v1/courses/" + c.id + "/courseWork?pageSize=20");
-      (w.courseWork || []).forEach(a => {
-        if (!a.dueDate) return;
-        const t = a.dueTime || {};
-        const due = new Date(Date.UTC(a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, t.hours ?? 23, t.minutes ?? 59));
-        if (due < now()) return;
+  let stale = null;
+  for (const acct of ACCOUNTS) {
+    const T = acct.token, tag = "g" + Math.abs(hashStr(acct.email)) + "_";
+    try {
+      const min = new Date().toISOString(), max = new Date(Date.now() + 14 * 864e5).toISOString();
+      const d = await gfetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=" +
+        encodeURIComponent(min) + "&timeMax=" + encodeURIComponent(max) + "&singleEvents=true&orderBy=startTime&maxResults=50", T);
+      (d.items || []).forEach(it => {
+        const st = it.start && (it.start.dateTime || it.start.date); if (!st) return;
         found.push({
-          id: "c_" + a.id, src: "google", kind: "assignment",
-          title: a.title, course: c.name, start: due.toISOString(),
-          why: (a.description || "").slice(0, 220) || null
+          id: tag + it.id, src: "google", account: acct.email, kind: "meeting",
+          title: it.summary || "Untitled", start: new Date(st).toISOString(),
+          who: (it.attendees || []).filter(a => !a.self).map(a => a.displayName || a.email).slice(0, 3).join(", ") || null,
+          room: (it.location || "").match(/(?:room|rm\.?)\s*([\w\d-]+)/i)?.[1] || null,
+          place: it.location ? { name: it.location } : null,
+          why: (it.description || "").slice(0, 220) || null
         });
       });
-    }
-  } catch (e) { console.warn("classroom", e); }
+    } catch (e) { if (String(e.message) === "401") stale = acct.email; console.warn("calendar", acct.email, e); }
+    try {
+      const cs = await gfetch("https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=20", T);
+      for (const c of (cs.courses || []).slice(0, 8)) {
+        const w = await gfetch("https://classroom.googleapis.com/v1/courses/" + c.id + "/courseWork?pageSize=20", T);
+        (w.courseWork || []).forEach(a => {
+          if (!a.dueDate) return;
+          const t = a.dueTime || {};
+          const due = new Date(Date.UTC(a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, t.hours ?? 23, t.minutes ?? 59));
+          if (due < now()) return;
+          found.push({
+            id: tag + a.id, src: "google", account: acct.email, kind: "assignment",
+            title: a.title, course: c.name, start: due.toISOString(),
+            why: (a.description || "").slice(0, 220) || null
+          });
+        });
+      }
+    } catch (e) { console.warn("classroom", acct.email, e); }
+  }
   S.events = keep.concat(found);
   await rescheduleAll();
+  if (stale) toast(stale + " needs reconnecting");
   scanGmail();
 }
+function hashStr(s) { let x = 0; for (let i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) | 0; return x; }
 
 async function pairLocation() {
   if (!navigator.geolocation) { toast("This device can't share location"); return; }
@@ -929,30 +981,32 @@ function parseWhen(text, received) {
 }
 
 async function scanGmail() {
-  if (!TOKEN || S.settings.emailScan === false) return;
-  try {
-    const l = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=18&q=" +
-      encodeURIComponent("newer_than:10d -category:promotions -category:social"));
-    const seen = {}; S.suggestions.forEach(s => seen[s.id] = 1);
-    const dropped = Store.get("omw_dismissed", {});
-    const found = [];
-    for (const msg of (l.messages || []).slice(0, 18)) {
-      const id = "m_" + msg.id;
-      if (dropped[id] || S.events.some(e => e.id === id)) continue;
-      const d = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
-        "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date");
-      const H = {}; (d.payload && d.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
-      const hit = parseWhen((H.subject || "") + ". " + (d.snippet || ""), H.date);
-      if (!hit) continue;
-      found.push({
-        id, src: "gmail", kind: hit.kind, title: H.subject || "(no subject)",
-        start: hit.when.toISOString(),
-        who: (H.from || "").replace(/<[^>]*>/, "").replace(/"/g, "").trim() || null,
-        why: "From email: " + (d.snippet || "").slice(0, 170)
-      });
-    }
-    S.suggestions = found; save(); renderHome();
-  } catch (e) { console.warn("gmail", e); }
+  if (!anyToken() || S.settings.emailScan === false) return;
+  const dropped = Store.get("omw_dismissed", {});
+  const found = [];
+  for (const acct of ACCOUNTS) {
+    const T = acct.token, tag = "m" + Math.abs(hashStr(acct.email)) + "_";
+    try {
+      const l = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=18&q=" +
+        encodeURIComponent("newer_than:10d -category:promotions -category:social"), T);
+      for (const msg of (l.messages || []).slice(0, 18)) {
+        const id = tag + msg.id;
+        if (dropped[id] || S.events.some(e => e.id === id)) continue;
+        const d = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
+          "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date", T);
+        const H = {}; (d.payload && d.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
+        const hit = parseWhen((H.subject || "") + ". " + (d.snippet || ""), H.date);
+        if (!hit) continue;
+        found.push({
+          id, src: "gmail", account: acct.email, kind: hit.kind, title: H.subject || "(no subject)",
+          start: hit.when.toISOString(),
+          who: (H.from || "").replace(/<[^>]*>/, "").replace(/"/g, "").trim() || null,
+          why: "From email: " + (d.snippet || "").slice(0, 170)
+        });
+      }
+    } catch (e) { console.warn("gmail", acct.email, e); }
+  }
+  S.suggestions = found; save(); renderHome();
 }
 function acceptSuggestion(id) {
   const s = S.suggestions.find(x => x.id === id); if (!s) return;
@@ -1182,6 +1236,7 @@ function openDetail(id) {
     <h2>${esc(e.title)}</h2>
     ${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}
     <div style="margin-top:16px">
+      ${e.account && ACCOUNTS.length > 1 ? `<div class="detail-meta"><div class="dm-k">From</div><div class="dm-v">${esc(e.account)}</div></div>` : ""}
       <div class="detail-meta"><div class="dm-k">When</div><div class="dm-v">${fmtDay(e.start)} at ${fmtTime(e.start)}<div style="color:var(--muted);font-size:12.5px;margin-top:2px">${humanGap(Math.max(0, relMin(e.start)))} from now</div></div></div>
       ${e.place && e.place.name ? `<div class="detail-meta"><div class="dm-k">Where</div><div class="dm-v">${esc(e.place.name)}${e.room ? "<br>Room " + esc(e.room) : ""}</div></div>` : ""}
       ${e.who ? `<div class="detail-meta"><div class="dm-k">Who</div><div class="dm-v">${esc(e.who)}</div></div>` : ""}
@@ -1297,7 +1352,7 @@ function renderSettings() {
   $("scr-set").innerHTML = `
   <div class="eyebrow">Paired apps</div>
   <div class="group">
-    ${row("google", "Google", p.google ? "Calendar, Classroom and mail are syncing" : "Calendar, Classroom, Gmail", pill(p.google, "Paired", "Pair"), "pairGoogle()")}
+    ${row("google", "Google", ACCOUNTS.length ? (ACCOUNTS.length === 1 ? esc(ACCOUNTS[0].email) : ACCOUNTS.length + " accounts syncing") : (S.accounts && S.accounts.length ? "Tap to reconnect " + esc(S.accounts[0]) : "Calendar, Classroom, Gmail"), pill(ACCOUNTS.length > 0, ACCOUNTS.length > 1 ? String(ACCOUNTS.length) : "Paired", "Pair"), ACCOUNTS.length ? "openAccounts()" : "pairGoogle()")}
     ${row("pin", "Location", p.location ? "Sharing while the app is open" : "Needed to time your departures", pill(p.location, "On", "Allow"), "pairLocation()")}
     ${row("bell", "Notifications", !p.notifications ? "Nothing can reach you until this is on" : (BG ? "Arrive even with the app closed" : "Add to your home screen for background alerts"), pill(p.notifications && BG, "On", p.notifications ? "Finish" : "Allow"), "notifRow()")}
     ${row("map", "Maps", p.maps ? "Live traffic and real addresses" : "Adds live traffic and address lookup", pill(p.maps, "On", "Pair"), "pairMaps()")}
@@ -1563,8 +1618,8 @@ async function initSW() {
   if (hash) setTimeout(() => openDetail(decodeURIComponent(hash[1])), 400);
   setInterval(tick, 20000);
   setInterval(() => { if (S.settings.sports) loadSports(); if (S.settings.weather) loadWeather(); }, 10 * 60000);
-  setInterval(() => { if (TOKEN) syncGoogle().then(renderHome); }, 5 * 60000);
-  setInterval(() => { if (TOKEN) scanGmail(); }, 15 * 60000);
+  setInterval(() => { if (anyToken()) syncGoogle().then(renderHome); }, 5 * 60000);
+  setInterval(() => { if (anyToken()) scanGmail(); }, 15 * 60000);
 })();
 
 </script>
