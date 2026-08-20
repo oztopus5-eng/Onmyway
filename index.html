@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FCF7F6">
+<title>On My Way</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="On My Way">
+<meta name="description" content="Tells you when to leave, not when things start.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FCF7F6;
+  --card:#FFFFFF;
+  --ink:#2E2427;
+  --muted:#7C6C6E;
+  --line:#F2E3E1;
+  --iris:#D96A62;
+  --iris-soft:#FDEEEC;
+  --mint:#6FA890;
+  --mint-soft:#E9F3EF;
+  --amber:#CE8F45;
+  --amber-soft:#FBF0E2;
+  --coral:#B4433A;
+  --coral-soft:#F9E4E1;
+  --shadow:0 1px 2px rgba(46,36,39,.04), 0 8px 24px rgba(46,36,39,.06);
+  --shadow-lg:0 2px 6px rgba(46,36,39,.06), 0 20px 48px rgba(46,36,39,.11);
+  --r:20px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;letter-spacing:-.02em;margin:0}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ---------- app frame ---------- */
+#app{position:relative;max-width:520px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:calc(28px + var(--safe-b))}
+.topbar{
+  position:sticky;top:0;z-index:40;
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px 12px;
+  background:rgba(252,247,246,.86);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid transparent;transition:border-color .2s;
+}
+.topbar.scrolled{border-bottom-color:var(--line)}
+.brand{font-family:"Bricolage Grotesque";font-weight:800;font-size:19px;letter-spacing:-.03em;flex:1}
+.brand span{color:var(--iris)}
+.iconbtn{
+  width:42px;height:42px;border-radius:14px;background:var(--card);
+  display:grid;place-items:center;box-shadow:var(--shadow);
+  transition:transform .12s ease, background .15s;
+}
+.iconbtn:active{transform:scale(.93)}
+.iconbtn.on{background:var(--iris);color:#fff}
+.iconbtn svg{width:20px;height:20px;stroke-width:1.9}
+
+.screen{padding:4px 16px 0;animation:rise .32s cubic-bezier(.2,.7,.3,1) both}
+.screen.leaving{position:absolute;top:0;left:0;right:0;pointer-events:none;z-index:1}
+@keyframes screenOut{from{opacity:1;transform:none}to{opacity:0;transform:translateX(calc(var(--dx,1) * -16px))}}
+@keyframes screenIn{from{opacity:0;transform:translateX(calc(var(--dx,1) * 16px))}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.hide{display:none!important}
+
+.eyebrow{
+  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin:22px 0 10px;
+}
+.eyebrow:first-child{margin-top:8px}
+
+/* ---------- hero: the departure ring ---------- */
+.hero{
+  background:var(--card);border-radius:26px;padding:22px 20px 20px;
+  box-shadow:var(--shadow-lg);position:relative;overflow:hidden;
+}
+.hero::after{content:"";position:absolute;inset:0;border-radius:26px;border:1px solid var(--line);pointer-events:none}
+.hero-top{display:flex;gap:18px;align-items:center}
+.ring{position:relative;width:104px;height:104px;flex:none}
+.ring svg{transform:rotate(-90deg);width:104px;height:104px}
+.ring circle{fill:none;stroke-linecap:round}
+.ring .track{stroke:var(--line);stroke-width:9}
+.ring .fill{stroke:var(--iris);stroke-width:9;transition:stroke-dashoffset .9s cubic-bezier(.3,.8,.3,1),stroke .4s}
+.ring-mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.ring-num{font-family:"Bricolage Grotesque";font-weight:800;font-size:30px;line-height:1;letter-spacing:-.04em}
+.ring-unit{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.hero-what{min-width:0}
+.hero-kind{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--iris);margin-bottom:5px}
+.hero-title{font-size:21px;line-height:1.15;margin-bottom:6px;overflow-wrap:anywhere}
+.hero-sub{font-size:13.5px;color:var(--muted);line-height:1.4}
+.hero-leave{
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+}
+.leave-label{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.leave-time{font-family:"Bricolage Grotesque";font-weight:800;font-size:27px;letter-spacing:-.03em;line-height:1}
+.leave-why{font-size:12.5px;color:var(--muted);width:100%;margin-top:7px}
+.hero.urgent .fill{stroke:var(--coral)} .hero.urgent .leave-time{color:var(--coral)} .hero.urgent .hero-kind{color:var(--coral)}
+.hero.soon .fill{stroke:var(--amber)} .hero.soon .leave-time{color:var(--amber)} .hero.soon .hero-kind{color:var(--amber)}
+
+/* ---------- timeline list ---------- */
+.tl{position:relative;padding-left:66px}
+.tl::before{content:"";position:absolute;left:57px;top:6px;bottom:16px;width:1.5px;background:var(--line)}
+.item{position:relative;margin-bottom:10px;animation:rise .3s both}
+.item-time{
+  position:absolute;left:-66px;top:14px;width:50px;text-align:right;
+  font-size:13px;font-weight:700;color:var(--muted);line-height:1.2;
+}
+.item-time small{display:block;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+.dot{position:absolute;left:-13.5px;top:19px;width:10px;height:10px;border-radius:50%;background:var(--card);border:2.5px solid var(--iris);z-index:2}
+.dot.done{background:var(--line);border-color:var(--line)}
+.card{
+  background:var(--card);border-radius:var(--r);padding:14px 15px;
+  box-shadow:var(--shadow);border:1px solid var(--line);
+  transition:transform .12s ease;width:100%;text-align:left;display:block;
+}
+.card:active{transform:scale(.985)}
+.card-t{font-weight:600;font-size:15.5px;line-height:1.25;margin-bottom:3px;overflow-wrap:anywhere}
+.card-s{font-size:12.5px;color:var(--muted);line-height:1.35}
+.tag{
+  display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  padding:3px 8px;border-radius:7px;margin-top:8px;
+}
+.t-meeting{background:var(--iris-soft);color:var(--iris)}
+.t-assignment{background:var(--amber-soft);color:var(--amber)}
+.t-routine{background:var(--mint-soft);color:var(--mint)}
+.t-game{background:#F4ECEA;color:#7C6C6E}
+.item.past .card{opacity:.5}
+
+/* ---------- strips ---------- */
+.strip{display:flex;gap:10px;overflow-x:auto;padding:2px 16px 4px;margin:0 -16px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.chip{
+  flex:none;background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:12px 14px;min-width:132px;box-shadow:var(--shadow);
+}
+.chip-k{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.chip-v{font-family:"Bricolage Grotesque";font-weight:800;font-size:20px;letter-spacing:-.02em;line-height:1.1}
+.chip-s{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.3}
+
+/* ---------- empty ---------- */
+.empty{
+  background:var(--card);border:1px dashed var(--line);border-radius:var(--r);
+  padding:26px 20px;text-align:center;
+}
+.empty h3{font-size:17px;margin-bottom:6px}
+.empty p{font-size:13.5px;color:var(--muted);margin:0 0 14px}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--iris);color:#fff;font-weight:600;font-size:15px;
+  padding:13px 20px;border-radius:15px;transition:transform .12s,filter .15s;
+}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow)}
+.btn.danger{background:var(--coral-soft);color:var(--coral)}
+.btn.full{width:100%}
+.btn[disabled]{opacity:.45;pointer-events:none}
+
+/* ---------- settings ---------- */
+.group{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.row{display:flex;align-items:center;gap:13px;padding:14px 15px;border-bottom:1px solid var(--line);width:100%;text-align:left}
+.row:last-child{border-bottom:0}
+.row-ico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;background:var(--iris-soft);color:var(--iris)}
+.row-ico svg{width:18px;height:18px;stroke-width:2}
+.row-txt{flex:1;min-width:0}
+.row-t{font-weight:600;font-size:14.5px;line-height:1.25}
+.row-s{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.35;overflow-wrap:anywhere}
+.row-ico{border:0}
+.sw{border:0;padding:0;width:50px;height:30px;border-radius:15px;background:var(--line);position:relative;flex:none;transition:background .22s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.18);transition:transform .22s cubic-bezier(.3,1.4,.5,1)}
+.sw.on{background:var(--iris)} .sw.on::after{transform:translateX(20px)}
+.sw.off{opacity:.5}
+.pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--mint-soft);color:var(--mint);flex:none}
+.pill.no{background:#EEF1F7;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);line-height:1.5;padding:0 4px;margin-top:10px}
+.field{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);font:inherit;font-size:15px;margin-top:8px;color:var(--ink)}
+.field:focus{outline:2px solid var(--iris);outline-offset:1px;border-color:transparent}
+label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-top:14px}
+
+/* ---------- calendar ---------- */
+.cal-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cal-title{flex:1;font-family:"Bricolage Grotesque";font-weight:800;font-size:20px;letter-spacing:-.02em}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dow{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-align:center;padding-bottom:6px}
+.day{
+  aspect-ratio:1;border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-size:14px;font-weight:600;background:var(--card);border:1px solid var(--line);position:relative;
+}
+.day.dim{background:transparent;border-color:transparent;color:#CBB6B3}
+.day.today{border-color:var(--iris);color:var(--iris)}
+.day.sel{background:var(--iris);border-color:var(--iris);color:#fff}
+.day .pips{display:flex;gap:2.5px;height:4px}
+.pip{width:4px;height:4px;border-radius:50%;background:var(--iris)}
+.day.sel .pip{background:#fff}
+
+/* ---------- sheet ---------- */
+.scrim{position:fixed;inset:0;background:rgba(46,36,39,.32);backdrop-filter:blur(2px);z-index:60;animation:fade .2s both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:61;max-width:520px;margin:0 auto;
+  background:var(--paper);border-radius:26px 26px 0 0;
+  padding:8px 18px calc(24px + var(--safe-b));max-height:90vh;overflow-y:auto;
+  animation:up .3s cubic-bezier(.2,.8,.3,1) both;box-shadow:0 -10px 40px rgba(46,36,39,.14);
+}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.sheet.closing{animation:down .26s cubic-bezier(.45,0,.75,.3) forwards}
+.scrim.closing{animation:unfade .26s ease forwards}
+@keyframes down{to{transform:translateY(100%)}}
+@keyframes unfade{to{opacity:0}}
+.grab{width:38px;height:4px;border-radius:2px;background:var(--line);margin:6px auto 14px}
+.sheet h2{font-size:22px;line-height:1.15;margin-bottom:6px;overflow-wrap:anywhere}
+.detail-meta{display:flex;gap:11px;padding:13px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.detail-meta:last-of-type{border-bottom:0}
+.dm-k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);width:74px;flex:none;padding-top:3px}
+.dm-v{flex:1;font-size:14.5px;line-height:1.4;overflow-wrap:anywhere}
+.why{font-size:13px;color:var(--muted);line-height:1.55;font-style:italic;margin-top:4px}
+
+/* ---------- tutorial ---------- */
+#tut{position:fixed;inset:0;z-index:90;background:var(--paper);display:flex;flex-direction:column}
+.tut-in{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:520px;margin:0 auto;width:100%;padding:32px 26px;will-change:opacity,transform}
+@keyframes tutOut{from{opacity:1;transform:none}to{opacity:0;transform:translateX(calc(var(--td,1) * -30px))}}
+@keyframes tutIn{from{opacity:0;transform:translateX(calc(var(--td,1) * 30px))}to{opacity:1;transform:none}}
+.tut-in .tut-step{animation:rise .5s cubic-bezier(.2,.7,.3,1) both;animation-delay:.05s}
+.tut-in .tut-h{animation:rise .5s cubic-bezier(.2,.7,.3,1) both;animation-delay:.11s}
+.tut-in .tut-p{animation:rise .5s cubic-bezier(.2,.7,.3,1) both;animation-delay:.17s}
+.tut-art svg{animation:artIn .62s cubic-bezier(.2,.8,.3,1) both}
+@keyframes artIn{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+#tut{transition:opacity .44s ease,transform .44s cubic-bezier(.3,.8,.3,1)}
+#tut.gone{opacity:0;transform:scale(1.04);pointer-events:none}
+.tut-art{height:190px;display:grid;place-items:center;margin-bottom:30px}
+.tut-step{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--iris);margin-bottom:12px}
+.tut-h{font-size:31px;line-height:1.08;margin-bottom:14px}
+.tut-p{font-size:15.5px;color:var(--muted);line-height:1.55;margin:0}
+.tut-foot{padding:0 26px calc(30px + var(--safe-b));max-width:520px;margin:0 auto;width:100%;display:flex;align-items:center;gap:14px}
+.dots{display:flex;gap:7px;flex:1}
+.tdot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:width .34s cubic-bezier(.3,1.2,.4,1),background .3s,border-radius .3s}
+.tdot.on{background:var(--iris);width:22px;border-radius:4px}
+
+/* ---------- toast + version ---------- */
+#toast{
+  position:fixed;left:50%;bottom:calc(26px + var(--safe-b));transform:translate(-50%,90px);
+  background:var(--ink);color:#FFF8F7;padding:12px 18px;border-radius:14px;font-size:14px;font-weight:500;
+  z-index:80;transition:transform .34s cubic-bezier(.2,.9,.3,1);max-width:calc(100% - 40px);text-align:center;
+}
+#toast.show{transform:translate(-50%,0)}
+#ver{
+  position:fixed;right:9px;bottom:calc(7px + var(--safe-b));z-index:70;
+  font-size:10px;font-weight:600;letter-spacing:.05em;color:#C6AEAB;
+  font-variant-numeric:tabular-nums;pointer-events:none;
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar" id="topbar">
+    <button class="iconbtn" id="navCal" aria-label="Calendar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+    </button>
+    <div class="brand">On My <span>Way</span></div>
+    <button class="iconbtn" id="navSet" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+
+  <div id="scr-home" class="screen"></div>
+  <div id="scr-cal" class="screen hide"></div>
+  <div id="scr-set" class="screen hide"></div>
+</div>
+
+<div id="sheetHost"></div>
+<div id="toast"></div>
+<div id="ver">v1.0.0</div>
+<div id="tut" class="hide"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* ============================================================
+   ON MY WAY — v1.0.0
+   A notification-timing layer: the app decides WHEN to tell you.
+   Single file. No build step. Host it anywhere over HTTPS.
+   ============================================================ */
+const VERSION = "1.4.0";
+
+/* ---------- storage (falls back to memory in sandboxed frames) ---------- */
+const Store = (() => {
+  let ok = true, mem = {};
+  try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); }
+  catch (e) { ok = false; }
+  return {
+    get(k, d) {
+      try { const v = ok ? localStorage.getItem(k) : mem[k]; return v == null ? d : JSON.parse(v); }
+      catch (e) { return d; }
+    },
+    set(k, v) {
+      const s = JSON.stringify(v);
+      try { ok ? localStorage.setItem(k, s) : (mem[k] = s); } catch (e) { mem[k] = s; }
+    }
+  };
+})();
+
+/* ---------- game feel ---------- */
+/**
+ * Four layers per press, the way a good game menu does it:
+ *   click  — a 30ms bandpassed noise transient, the part your finger "feels"
+ *   body   — an FM bell whose modulation index decays, so it goes bright to pure
+ *   thump  — a low sine dropping in pitch, the weight underneath
+ *   air    — a short bright room so it isn't bone dry
+ * Tap fast and the notes climb a pentatonic ladder instead of repeating.
+ * Pause for half a second and the ladder resets to the bottom.
+ */
+const Sound = (() => {
+  let ctx = null, room = null, dry = null, noise = null, lastPlay = 0, step = 0, lastTap = 0;
+  const on = () => S.settings.sounds !== false;
+
+  function ac() {
+    if (ctx) return ctx;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const L = Math.floor(ctx.sampleRate * 0.4), ir = ctx.createBuffer(2, L, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 4.5) * 0.3;
+    }
+    const verb = ctx.createConvolver(); verb.buffer = ir;
+    const wet = ctx.createGain(); wet.gain.value = 0.15;
+    dry = ctx.createGain(); dry.gain.value = 0.95;
+    room = ctx.createGain();
+    room.connect(verb); verb.connect(wet); wet.connect(ctx.destination); dry.connect(ctx.destination);
+    const N = Math.floor(ctx.sampleRate * 0.03);
+    noise = ctx.createBuffer(1, N, ctx.sampleRate);
+    const nd = noise.getChannelData(0);
+    for (let i = 0; i < N; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / N, 3);
+    return ctx;
+  }
+  function out(node, pan) {
+    const c = ac();
+    if (c.createStereoPanner) {
+      const p = c.createStereoPanner(); p.pan.value = pan || 0;
+      node.connect(p); p.connect(dry); p.connect(room);
+    } else { node.connect(dry); node.connect(room); }
+  }
+
+  /** FM voice. index decays over the note, which is what makes a bell a bell. */
+  function fm(f, vol, dur, ratio, index, delay, pan) {
+    if (!on()) return;
+    try {
+      const c = ac(); if (c.state === "suspended") c.resume();
+      const t = c.currentTime + (delay || 0);
+      const car = c.createOscillator(), mod = c.createOscillator();
+      const mg = c.createGain(), g = c.createGain();
+      car.frequency.setValueAtTime(f, t);
+      mod.frequency.setValueAtTime(f * ratio, t);
+      mg.gain.setValueAtTime(f * index, t);
+      mg.gain.exponentialRampToValueAtTime(Math.max(1, f * index * 0.04), t + dur * 0.55);
+      mod.connect(mg); mg.connect(car.frequency);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      car.connect(g); out(g, pan);
+      mod.start(t); mod.stop(t + dur + .05); car.start(t); car.stop(t + dur + .05);
+      lastPlay = performance.now();
+    } catch (e) {}
+  }
+  function click(vol, freq, delay) {
+    if (!on()) return;
+    try {
+      const c = ac(), t = c.currentTime + (delay || 0);
+      const s = c.createBufferSource(); s.buffer = noise;
+      const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 1.2;
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.028);
+      s.connect(bp); bp.connect(g); out(g, 0);
+      s.start(t); s.stop(t + 0.05);
+    } catch (e) {}
+  }
+  function thump(f, vol, dur, delay) {
+    if (!on()) return;
+    try {
+      const c = ac(), t = c.currentTime + (delay || 0);
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f * 0.55, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(dry);
+      o.start(t); o.stop(t + dur + .03);
+    } catch (e) {}
+  }
+
+  const LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];   // pentatonic, two octaves
+  const C5 = 523.25;
+  function climb() {
+    const t = performance.now();
+    step = (t - lastTap < 600) ? Math.min(step + 1, LADDER.length - 1) : 0;
+    lastTap = t;
+    return C5 * Math.pow(2, LADDER[step] / 12);
+  }
+  const pan = () => Math.random() * 0.36 - 0.18;
+
+  return {
+    busy: () => performance.now() - lastPlay < 90,
+    prime: () => { try { ac(); } catch (e) {} },
+    tap: () => { const f = climb(); click(0.045, 3400); fm(f, 0.07, 0.1, 2, 1.7, 0, pan()); thump(160, 0.035, 0.055); },
+    back: () => { click(0.03, 1900); fm(C5 * 0.75, 0.06, 0.13, 1.5, 1.1, 0, 0); thump(120, 0.045, 0.07); },
+    open: () => { click(0.035, 2400); fm(C5 * 0.84, 0.065, 0.12, 2, 1.4, 0, -.08); fm(C5 * 1.26, 0.05, 0.13, 2, 1.2, 0.05, .1); thump(150, 0.05, 0.07); },
+    on: () => { click(0.05, 3800); fm(C5, 0.07, 0.1, 3.5, 1.8, 0, -.1); fm(C5 * 1.5, 0.06, 0.15, 3.5, 1.4, 0.055, .12); thump(170, 0.04, 0.05); },
+    off: () => { click(0.03, 1600); fm(C5 * 0.84, 0.06, 0.1, 1.5, 1, 0, .1); fm(C5 * 0.63, 0.05, 0.16, 1.5, 0.8, 0.055, -.1); thump(110, 0.05, 0.09); },
+    ping: () => {
+      click(0.05, 4200);
+      fm(C5, 0.085, 0.16, 3.5, 2.2, 0, -.14);
+      fm(C5 * 1.26, 0.075, 0.18, 3.5, 1.9, 0.085, .05);
+      fm(C5 * 1.5, 0.07, 0.3, 3.5, 1.6, 0.17, .16);
+      fm(C5 * 3, 0.028, 0.34, 2, 1, 0.19, 0);
+      thump(180, 0.05, 0.08);
+    }
+  };
+})();
+window.Sound = Sound;
+
+/* ---------- state ---------- */
+const DEFAULTS = {
+  onboarded: false,
+  settings: {
+    sounds: true,
+    bufferMin: 12,          // comfort padding added to every trip
+    quietStart: 21.5,       // no notifications after 9:30pm
+    quietEnd: 7,            // or before 7am
+    homeworkHour: 18,       // aim assignment alerts for 6pm the day before
+    sports: false, weather: false, traffic: false, routines: true, emailScan: true,
+    weatherMorning: true, weatherSevere: true,
+    sportsPre: true, sportsScore: false, sportsFinal: true
+  },
+  keys: { googleClientId: "", mapsKey: "" },
+  home: null,               // {lat,lng} learned or set
+  geo: {},                  // geocode cache, so we ask once per place
+  suggestions: [],          // parsed out of email, waiting on your yes
+  teams: [],                // [{league,id,name}]
+  events: [],               // unified event objects
+  routines: [],             // [{id,title,time:"07:20",days:[1,2,3,4,5],place?}]
+  fired: {},                // id -> timestamp
+  routeLearning: {},        // destKey -> {ratio, n}
+  paired: { google: false, location: false, notifications: false, maps: false }
+};
+let S = Object.assign({}, DEFAULTS, Store.get("omw", {}));
+S.settings = Object.assign({}, DEFAULTS.settings, S.settings || {});
+S.keys = Object.assign({}, DEFAULTS.keys, S.keys || {});
+S.paired = Object.assign({}, DEFAULTS.paired, S.paired || {});
+S.geo = S.geo || {}; S.suggestions = S.suggestions || [];
+const save = () => Store.set("omw", S);
+
+/* ---------- time helpers ---------- */
+const MIN = 60000;
+const now = () => new Date();
+const fmtTime = d => new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const fmtDay = d => {
+  const x = new Date(d), t = new Date(); t.setHours(0, 0, 0, 0);
+  const dd = new Date(x); dd.setHours(0, 0, 0, 0);
+  const diff = Math.round((dd - t) / 86400000);
+  if (diff === 0) return "Today"; if (diff === 1) return "Tomorrow"; if (diff === -1) return "Yesterday";
+  return x.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+};
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+const relMin = d => Math.round((new Date(d) - now()) / MIN);
+function humanGap(mins) {
+  if (mins < 1) return "now";
+  if (mins < 60) return mins + " min";
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h < 24) return h + "h" + (m ? " " + m + "m" : "");
+  const d = Math.round(h / 24); return d + " day" + (d > 1 ? "s" : "");
+}
+
+/* ============================================================
+   THE ENGINE — this is the actual product.
+   Everything else is a shell around these three functions.
+   ============================================================ */
+
+/** Distance in km between two {lat,lng}. */
+function haversine(a, b) {
+  const R = 6371, r = x => x * Math.PI / 180;
+  const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Travel time in minutes from origin to an event's place.
+ * Uses Google Directions (live traffic) when a Maps key is paired,
+ * otherwise a road-factored straight-line estimate.
+ * Then applies what we've LEARNED about this person on this route.
+ */
+async function travelMinutes(origin, dest, destKey) {
+  let base = null;
+  if (S.paired.maps && window.google && google.maps && google.maps.DirectionsService) {
+    base = await new Promise(res => {
+      try {
+        new google.maps.DirectionsService().route({
+          origin, destination: dest, travelMode: "DRIVING",
+          drivingOptions: { departureTime: new Date(), trafficModel: "bestguess" }
+        }, (r, st) => {
+          if (st === "OK" && r.routes[0]) {
+            const leg = r.routes[0].legs[0];
+            res(Math.round((leg.duration_in_traffic || leg.duration).value / 60));
+          } else res(null);
+        });
+      } catch (e) { res(null); }
+    });
+  }
+  if (base == null) {
+    const km = haversine(origin, dest) * 1.32;      // roads aren't straight
+    base = Math.max(5, Math.round(km / 38 * 60));   // ~38 km/h door to door
+  }
+  const L = S.routeLearning[destKey];
+  if (L && L.n >= 2) base = Math.round(base * L.ratio);
+  return base;
+}
+
+/** After a real trip, record how wrong we were so next time is closer. */
+function learnRoute(destKey, estimated, actual) {
+  const L = S.routeLearning[destKey] || { ratio: 1, n: 0 };
+  const r = Math.min(2.5, Math.max(.5, actual / estimated));
+  L.ratio = (L.ratio * L.n + r) / (L.n + 1);
+  L.n = Math.min(12, L.n + 1);
+  S.routeLearning[destKey] = L; save();
+}
+
+/**
+ * QUIET HOURS. Nothing wakes you up, nothing arrives too late to act on.
+ * A notification scheduled inside quiet hours moves to the edge of the window
+ * — forward if there's still time, backward if the deadline is close.
+ */
+function respectQuietHours(when, deadline) {
+  const s = S.settings, d = new Date(when), h = d.getHours() + d.getMinutes() / 60;
+  const inQuiet = (s.quietStart > s.quietEnd) ? (h >= s.quietStart || h < s.quietEnd) : (h >= s.quietStart && h < s.quietEnd);
+  if (!inQuiet) return d;
+  const morning = new Date(d);
+  if (h < s.quietEnd) morning.setHours(Math.floor(s.quietEnd), (s.quietEnd % 1) * 60, 0, 0);
+  else { morning.setDate(morning.getDate() + 1); morning.setHours(Math.floor(s.quietEnd), (s.quietEnd % 1) * 60, 0, 0); }
+  if (!deadline || morning < new Date(deadline)) return morning;   // wait until you're awake
+  const evening = new Date(d);                                      // deadline is too close — tell you before bed
+  if (h >= s.quietStart) evening.setHours(Math.floor(s.quietStart) - 0, (s.quietStart % 1) * 60 - 1, 0, 0);
+  else { evening.setDate(evening.getDate() - 1); evening.setHours(Math.floor(s.quietStart), (s.quietStart % 1) * 60 - 1, 0, 0); }
+  return evening > now() ? evening : new Date(Date.now() + MIN);
+}
+
+/**
+ * When should this event be announced?
+ * MEETING     -> start − travel − comfort buffer. You get told to LEAVE, not that it exists.
+ * ASSIGNMENT  -> 6pm the day before. Never 24h-to-the-minute, because a 3am post
+ *                would mean a 3am alert. If the due date is closer than that,
+ *                fire soon but still inside waking hours.
+ * ROUTINE     -> at its set time, traffic-adjusted if it has a place.
+ */
+/**
+ * Turn a place NAME into coordinates. Calendar events and anything you type
+ * arrive as text, and text has no distance. Without this every trip was
+ * silently worth zero minutes.
+ */
+async function geocode(name) {
+  if (!name) return null;
+  const k = name.toLowerCase().trim().slice(0, 90);
+  if (S.geo[k]) return S.geo[k];
+  let r = null;
+  if (S.paired.maps && window.google && google.maps && google.maps.Geocoder) {
+    r = await new Promise(res => {
+      try {
+        new google.maps.Geocoder().geocode({ address: name }, (x, st) => {
+          if (st === "OK" && x[0]) { const l = x[0].geometry.location; res({ lat: l.lat(), lng: l.lng() }); }
+          else res(null);
+        });
+      } catch (e) { res(null); }
+    });
+  }
+  if (!r) {                                   // keyless fallback: city-level only
+    try {
+      const q = name.replace(/^[\d\-\s]+/, "").split(",")[0].trim();
+      const d = await (await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(q))).json();
+      if (d.results && d.results[0]) r = { lat: d.results[0].latitude, lng: d.results[0].longitude, rough: true };
+    } catch (e) {}
+  }
+  if (r) { S.geo[k] = r; save(); }
+  return r;
+}
+
+async function computeAlert(ev, origin) {
+  const start = new Date(ev.start);
+  if (ev.kind === "assignment") {
+    const target = new Date(start);
+    target.setDate(target.getDate() - 1);
+    target.setHours(S.settings.homeworkHour, 0, 0, 0);
+    const when = (target <= now()) ? new Date(Date.now() + 2 * MIN) : target;
+    return { at: respectQuietHours(when, start), travel: 0, reason: "Due " + fmtDay(start) + " at " + fmtTime(start) };
+  }
+  let travel = 0, reason = "";
+  if (ev.place && !ev.place.lat && ev.place.name) {          // resolve text to a point
+    const g = await geocode(ev.place.name);
+    if (g) { ev.place.lat = g.lat; ev.place.lng = g.lng; ev.place.rough = g.rough; }
+  }
+  if (ev.place && ev.place.lat && origin) {
+    travel = await travelMinutes(origin, { lat: ev.place.lat, lng: ev.place.lng }, ev.place.name || ev.title);
+    reason = travel + " min of travel plus " + S.settings.bufferMin + " min of slack" +
+      (ev.place.rough ? ", from an approximate location" : "") +
+      (S.routeLearning[ev.place.name] && S.routeLearning[ev.place.name].n >= 2 ? ", adjusted to how long this trip really takes you" : "");
+  } else if (ev.place && ev.place.name) {
+    reason = "Couldn't place " + ev.place.name + " on a map — timed off the start";
+  } else if (!origin) {
+    reason = "Location off — timed off the start";
+  } else {
+    reason = "No location on this one — timed off the start";
+  }
+  const at = new Date(start.getTime() - (travel + (travel ? S.settings.bufferMin : 5)) * MIN);
+  return { at, travel, reason };
+}
+
+/** Exactly the format asked for. Blanks only appear when we actually know them. */
+function notifText(ev) {
+  const mins = relMin(ev.start);
+  const kind = ev.kind === "assignment" ? "assignment" : (ev.kind === "routine" ? "reminder" : "meeting");
+  if (ev.kind === "assignment")
+    return { title: ev.title, body: "Due " + fmtDay(ev.start).toLowerCase() + " at " + fmtTime(ev.start) + (ev.course ? " · " + ev.course : "") };
+  let s = "You have a " + kind + " at " + (ev.place && ev.place.name ? ev.place.name : fmtTime(ev.start));
+  if (ev.room) s += " in room " + ev.room;
+  if (ev.who) s += " with " + ev.who;
+  s += " in " + humanGap(Math.max(0, mins)) + ".";
+  return { title: ev.title, body: s };
+}
+
+/* ---------- did we get it right? ---------- */
+let TRIP = null;
+function noteDeparture(ev, est) {
+  if (!est || !ev.place || !ev.place.lat) return;
+  TRIP = { id: ev.id, key: ev.place.name || ev.title, est, left: Date.now() };
+}
+function checkArrival(pos) {
+  if (!TRIP || !pos) return;
+  const ev = S.events.find(e => e.id === TRIP.id);
+  if (!ev || !ev.place || !ev.place.lat) { TRIP = null; return; }
+  if (Date.now() - TRIP.left > 4 * 60 * MIN) { TRIP = null; return; }
+  if (haversine(pos, { lat: ev.place.lat, lng: ev.place.lng }) < 0.2) {
+    const actual = Math.max(1, Math.round((Date.now() - TRIP.left) / MIN));
+    learnRoute(TRIP.key, TRIP.est, actual);
+    toast("That took " + actual + " min. Noted for next time.");
+    TRIP = null;
+  }
+}
+
+/* ---------- rebuild every alert time ---------- */
+let ORIGIN = null;
+async function rescheduleAll() {
+  for (const ev of S.events) {
+    if (new Date(ev.start) < now() - 6 * 60 * MIN) continue;
+    const a = await computeAlert(ev, ORIGIN || S.home);
+    ev.alertAt = a.at.toISOString(); ev.travel = a.travel; ev.reason = a.reason;
+  }
+  S.events.sort((a, b) => new Date(a.start) - new Date(b.start));
+  save();
+  queueToIDB();
+}
+
+/* ---------- delivery loop ---------- */
+function deliver(ev) {
+  const t = notifText(ev);
+  Sound.ping();
+  if (S.paired.notifications && "Notification" in window && Notification.permission === "granted") {
+    try {
+      const n = new Notification(t.title, { body: t.body, tag: ev.id, badge: "", requireInteraction: false });
+      n.onclick = () => { window.focus(); openDetail(ev.id); n.close(); };
+    } catch (e) { toast(t.body); }
+  } else toast(t.body);
+  S.fired[ev.id] = Date.now(); save();
+  if (S.settings.traffic) noteDeparture(ev, ev.travel);
+  queueToIDB();
+}
+function tick() {
+  const t = Date.now();
+  for (const ev of S.events) {
+    if (S.fired[ev.id] || !ev.alertAt) continue;
+    const at = new Date(ev.alertAt).getTime();
+    if (at <= t && t - at < 30 * MIN) deliver(ev);
+  }
+  IDB.sentIds().then(ids => {
+    let ch = false;
+    ids.forEach(id => { if (!S.fired[id]) { S.fired[id] = Date.now(); ch = true; } });
+    if (ch) save();
+  });
+  const home = document.getElementById("scr-home");
+  if (home && !home.classList.contains("hide")) renderHome();
+}
+
+/* ============================================================
+   PAIRING — real APIs, real scopes.
+   ============================================================ */
+const SCOPES = [
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/classroom.courses.readonly",
+  "https://www.googleapis.com/auth/classroom.coursework.me.readonly"
+].join(" ");
+let TOKEN = null;
+
+function pairGoogle() {
+  if (!S.keys.googleClientId) { toast("Add a Google client ID in Settings first"); return; }
+  if (!window.google || !google.accounts) { toast("Google sign-in didn't load — check your connection"); return; }
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: S.keys.googleClientId, scope: SCOPES,
+    callback: async r => {
+      if (r.error) { toast("Pairing cancelled"); return; }
+      TOKEN = r.access_token; S.paired.google = true; save();
+      toast("Google paired — pulling your schedule");
+      await syncGoogle(); renderSettings(); renderHome();
+    }
+  });
+  client.requestAccessToken();
+}
+const gfetch = async url => {
+  const r = await fetch(url, { headers: { Authorization: "Bearer " + TOKEN } });
+  if (!r.ok) throw new Error(r.status); return r.json();
+};
+
+async function syncGoogle() {
+  if (!TOKEN) return;
+  const keep = S.events.filter(e => e.src !== "google");
+  const found = [];
+  try {
+    const min = new Date().toISOString(), max = new Date(Date.now() + 14 * 864e5).toISOString();
+    const d = await gfetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=" +
+      encodeURIComponent(min) + "&timeMax=" + encodeURIComponent(max) + "&singleEvents=true&orderBy=startTime&maxResults=50");
+    (d.items || []).forEach(it => {
+      const st = it.start && (it.start.dateTime || it.start.date); if (!st) return;
+      found.push({
+        id: "g_" + it.id, src: "google", kind: "meeting",
+        title: it.summary || "Untitled", start: new Date(st).toISOString(),
+        who: (it.attendees || []).filter(a => !a.self).map(a => a.displayName || a.email).slice(0, 3).join(", ") || null,
+        room: (it.location || "").match(/(?:room|rm\.?)\s*([\w\d-]+)/i)?.[1] || null,
+        place: it.location ? { name: it.location } : null,
+        why: (it.description || "").slice(0, 220) || null
+      });
+    });
+  } catch (e) { console.warn("calendar", e); }
+  try {
+    const cs = await gfetch("https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=20");
+    for (const c of (cs.courses || []).slice(0, 8)) {
+      const w = await gfetch("https://classroom.googleapis.com/v1/courses/" + c.id + "/courseWork?pageSize=20");
+      (w.courseWork || []).forEach(a => {
+        if (!a.dueDate) return;
+        const t = a.dueTime || {};
+        const due = new Date(Date.UTC(a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, t.hours ?? 23, t.minutes ?? 59));
+        if (due < now()) return;
+        found.push({
+          id: "c_" + a.id, src: "google", kind: "assignment",
+          title: a.title, course: c.name, start: due.toISOString(),
+          why: (a.description || "").slice(0, 220) || null
+        });
+      });
+    }
+  } catch (e) { console.warn("classroom", e); }
+  S.events = keep.concat(found);
+  await rescheduleAll();
+  scanGmail();
+}
+
+async function pairLocation() {
+  if (!navigator.geolocation) { toast("This device can't share location"); return; }
+  navigator.geolocation.getCurrentPosition(p => {
+    ORIGIN = { lat: p.coords.latitude, lng: p.coords.longitude };
+    if (!S.home) S.home = ORIGIN;
+    S.paired.location = true; save(); Sound.on();
+    toast("Location paired");
+    rescheduleAll().then(() => { renderSettings(); renderHome(); if (S.settings.weather) loadWeather(); });
+    navigator.geolocation.watchPosition(q => { ORIGIN = { lat: q.coords.latitude, lng: q.coords.longitude }; checkArrival(ORIGIN); },
+      () => {}, { enableHighAccuracy: false, maximumAge: 120000 });
+  }, () => toast("Location permission denied"), { enableHighAccuracy: true, timeout: 12000 });
+}
+
+async function pairNotifications() {
+  if (!("Notification" in window)) { toast("This browser has no notifications"); return; }
+  const p = await Notification.requestPermission();
+  S.paired.notifications = p === "granted"; save();
+  toast(p === "granted" ? "Notifications on" : "Notifications blocked");
+  renderSettings();
+}
+
+function pairMaps() {
+  if (!S.keys.mapsKey) { toast("Add a Maps API key in Settings first"); return; }
+  if (window.google && google.maps && google.maps.DirectionsService) { S.paired.maps = true; save(); renderSettings(); return; }
+  const s = document.createElement("script");
+  s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(S.keys.mapsKey) + "&libraries=routes";
+  s.onload = () => { S.paired.maps = true; save(); toast("Maps paired — trips now use live traffic"); rescheduleAll().then(renderHome); renderSettings(); };
+  s.onerror = () => toast("Maps key rejected");
+  document.head.appendChild(s);
+}
+
+/** A notification that isn't tied to a calendar event. Fires once, ever. */
+function pushLocal(id, title, body) {
+  if (S.fired[id]) return;
+  S.fired[id] = Date.now(); save(); Sound.ping();
+  if (S.paired.notifications && "Notification" in window && Notification.permission === "granted") {
+    try { new Notification(title, { body, tag: id, icon: "./icon-192.png" }); } catch (e) { toast(body); }
+  } else toast(body);
+}
+
+/* ---------- weather (Open-Meteo, no key needed) ---------- */
+let WEATHER = null;
+async function loadWeather() {
+  const o = ORIGIN || S.home; if (!o) return;
+  try {
+    const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + o.lat + "&longitude=" + o.lng +
+      "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max&temperature_unit=fahrenheit&timezone=auto&forecast_days=2");
+    const d = await r.json();
+    WEATHER = {
+      now: Math.round(d.current.temperature_2m), code: d.current.weather_code,
+      hi: Math.round(d.daily.temperature_2m_max[0]), lo: Math.round(d.daily.temperature_2m_min[0]),
+      rain: d.daily.precipitation_probability_max[0]
+    };
+    weatherAlerts();
+    renderHome();
+  } catch (e) { console.warn("weather", e); }
+}
+function weatherAlerts() {
+  if (!WEATHER || !S.settings.weather) return;
+  const day = new Date().toDateString(), hr = new Date().getHours();
+  if (S.settings.weatherSevere && (WEATHER.code >= 95 || WEATHER.rain >= 70))
+    pushLocal("ws_" + day + "_" + WEATHER.code, WEATHER.code >= 95 ? "Storms coming" : "Rain today",
+      WCODE(WEATHER.code) + " where you are. " + WEATHER.rain + "% chance — take a jacket.");
+  if (S.settings.weatherMorning && hr >= 6 && hr < 11)
+    pushLocal("wm_" + day, "Today: " + WEATHER.hi + "° / " + WEATHER.lo + "°",
+      WCODE(WEATHER.code) + ", " + WEATHER.now + "° right now" + (WEATHER.rain > 25 ? " · " + WEATHER.rain + "% rain" : ""));
+}
+const WCODE = c => ({ 0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Fog", 51: "Drizzle", 53: "Drizzle", 55: "Drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain", 71: "Snow", 73: "Snow", 75: "Heavy snow", 80: "Showers", 81: "Showers", 82: "Downpours", 95: "Thunderstorms", 96: "Thunderstorms", 99: "Thunderstorms" }[c] || "—");
+
+/* ---------- sports (ESPN public scoreboard, no key needed) ---------- */
+let SPORTS = [];
+const LEAGUES = { mlb: "baseball/mlb", nba: "basketball/nba", nfl: "football/nfl", nhl: "hockey/nhl" };
+async function loadSports() {
+  if (!S.teams.length) { SPORTS = []; return; }
+  const out = [];
+  for (const lg of [...new Set(S.teams.map(t => t.league))]) {
+    try {
+      const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/" + LEAGUES[lg] + "/scoreboard");
+      const d = await r.json();
+      (d.events || []).forEach(ev => {
+        const c = ev.competitions[0], teams = c.competitors.map(x => x.team.abbreviation);
+        const mine = S.teams.filter(t => t.league === lg).map(t => t.id);
+        if (!teams.some(t => mine.includes(t))) return;
+        out.push({
+          league: lg, name: ev.shortName, state: c.status.type.state,
+          detail: c.status.type.shortDetail,
+          score: c.competitors.map(x => x.team.abbreviation + " " + (x.score ?? "")).join("  ·  "),
+          start: ev.date
+        });
+      });
+    } catch (e) { console.warn("sports", e); }
+  }
+  SPORTS = out; sportsAlerts(out); renderHome();
+}
+
+
+const LASTSCORE = {};
+function sportsAlerts(games) {
+  if (!S.settings.sports) return;
+  for (const g of games) {
+    const key = g.name + "_" + new Date(g.start).toDateString();
+    if (g.state === "pre" && S.settings.sportsPre) {
+      const m = Math.round((new Date(g.start) - Date.now()) / MIN);
+      if (m > 0 && m <= 65) pushLocal("sp_" + key, g.name + " starts soon", "First pitch in " + m + " min.");
+    }
+    if (g.state === "in" && S.settings.sportsScore) {
+      if (LASTSCORE[key] && LASTSCORE[key] !== g.score) {
+        delete S.fired["si_" + key];
+        pushLocal("si_" + key, "Score update", g.score + " · " + g.detail);
+      }
+      LASTSCORE[key] = g.score;
+    }
+    if (g.state === "post" && S.settings.sportsFinal)
+      pushLocal("sf_" + key, "Final", g.score);
+  }
+}
+
+/* ---------- reading your email, carefully ---------- */
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const DAYNAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+/** Find a date and time in ordinary sentences. Returns null unless it's confident. */
+function parseWhen(text, received) {
+  const t = (text || "").toLowerCase();
+  const isDue = /\b(due|deadline|submit by|turn it in|turn in|hand in|no later than)\b/.test(t);
+  const isMeet = /\b(meeting|meet at|call|appointment|interview|practice|rehearsal|conference|tryout|orientation|recital)\b/.test(t);
+  if (!isDue && !isMeet) return null;
+  const base = received ? new Date(received) : new Date();
+  let d = null, m;
+  if ((m = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/))) {
+    const y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : base.getFullYear();
+    d = new Date(y, +m[1] - 1, +m[2]);
+  } else if ((m = t.match(new RegExp("\\b(" + MONTHS.join("|") + ")[a-z]*\\.?\\s+(\\d{1,2})\\b")))) {
+    d = new Date(base.getFullYear(), MONTHS.indexOf(m[1]), +m[2]);
+    if (d.getTime() < base.getTime() - 30 * 864e5) d.setFullYear(d.getFullYear() + 1);
+  } else if (/\btomorrow\b/.test(t)) { d = new Date(base); d.setDate(d.getDate() + 1); }
+  else if (/\btonight\b|\btoday\b/.test(t)) { d = new Date(base); }
+  else if ((m = t.match(new RegExp("\\b(?:next\\s+)?(" + DAYNAMES.join("|") + ")\\b")))) {
+    d = new Date(base);
+    let add = (DAYNAMES.indexOf(m[1]) - d.getDay() + 7) % 7;
+    d.setDate(d.getDate() + (add || 7));
+  }
+  if (!d || isNaN(d)) return null;
+  let hh = isDue ? 23 : 9, mm = isDue ? 59 : 0;
+  if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m|p\.?m)\b/))) {
+    hh = (+m[1] % 12) + (m[3][0] === "p" ? 12 : 0); mm = m[2] ? +m[2] : 0;
+  }
+  d.setHours(hh, mm, 0, 0);
+  if (d.getTime() < Date.now()) return null;
+  return { kind: isDue ? "assignment" : "meeting", when: d };
+}
+
+async function scanGmail() {
+  if (!TOKEN || S.settings.emailScan === false) return;
+  try {
+    const l = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=18&q=" +
+      encodeURIComponent("newer_than:10d -category:promotions -category:social"));
+    const seen = {}; S.suggestions.forEach(s => seen[s.id] = 1);
+    const dropped = Store.get("omw_dismissed", {});
+    const found = [];
+    for (const msg of (l.messages || []).slice(0, 18)) {
+      const id = "m_" + msg.id;
+      if (dropped[id] || S.events.some(e => e.id === id)) continue;
+      const d = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
+        "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date");
+      const H = {}; (d.payload && d.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
+      const hit = parseWhen((H.subject || "") + ". " + (d.snippet || ""), H.date);
+      if (!hit) continue;
+      found.push({
+        id, src: "gmail", kind: hit.kind, title: H.subject || "(no subject)",
+        start: hit.when.toISOString(),
+        who: (H.from || "").replace(/<[^>]*>/, "").replace(/"/g, "").trim() || null,
+        why: "From email: " + (d.snippet || "").slice(0, 170)
+      });
+    }
+    S.suggestions = found; save(); renderHome();
+  } catch (e) { console.warn("gmail", e); }
+}
+function acceptSuggestion(id) {
+  const s = S.suggestions.find(x => x.id === id); if (!s) return;
+  S.events.push(Object.assign({}, s, { src: "gmail-ok" }));
+  S.suggestions = S.suggestions.filter(x => x.id !== id);
+  Sound.on(); rescheduleAll().then(renderHome); toast("Added");
+}
+function dismissSuggestion(id) {
+  const dropped = Store.get("omw_dismissed", {}); dropped[id] = 1; Store.set("omw_dismissed", dropped);
+  S.suggestions = S.suggestions.filter(x => x.id !== id); save(); Sound.off(); renderHome();
+}
+
+/* ---------- the queue the service worker reads ---------- */
+const IDB = (() => {
+  let p;
+  const open = () => p || (p = new Promise((res, rej) => {
+    if (!("indexedDB" in window)) return rej("unsupported");
+    const r = indexedDB.open("omw", 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains("q")) r.result.createObjectStore("q", { keyPath: "id" }); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  return {
+    async sync(items) {
+      try {
+        const db = await open(), tx = db.transaction("q", "readwrite"), st = tx.objectStore("q");
+        const old = await new Promise(r => { const g = st.getAll(); g.onsuccess = () => r(g.result || []); g.onerror = () => r([]); });
+        const sent = {}; old.forEach(o => { if (o.sent) sent[o.id] = o.sent; });
+        st.clear();
+        items.forEach(i => st.put(Object.assign({}, i, { sent: sent[i.id] || null })));
+        return new Promise(r => { tx.oncomplete = r; tx.onerror = r; });
+      } catch (e) {}
+    },
+    async sentIds() {
+      try {
+        const db = await open();
+        return await new Promise(r => {
+          const g = db.transaction("q", "readonly").objectStore("q").getAll();
+          g.onsuccess = () => r((g.result || []).filter(x => x.sent).map(x => x.id));
+          g.onerror = () => r([]);
+        });
+      } catch (e) { return []; }
+    }
+  };
+})();
+function queueToIDB() {
+  try {
+    const items = upcoming().filter(e => e.alertAt && !S.fired[e.id]).slice(0, 40).map(e => {
+      const t = notifText(e);
+      return { id: e.id, title: t.title, body: t.body, at: new Date(e.alertAt).getTime(), urgent: e.kind !== "assignment" };
+    });
+    IDB.sync(items);
+  } catch (e) {}
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => (s == null ? "" : String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])));
+let toastT;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 4200);
+}
+const ICONS = {
+  google: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z" opacity=".0"/><path d="M21 12.2c0-.7-.1-1.3-.2-1.9H12v3.7h5.1a4.4 4.4 0 0 1-1.9 2.9v2.4h3.1c1.8-1.7 2.7-4.2 2.7-7.1z"/><path d="M12 21c2.5 0 4.6-.8 6.2-2.3l-3.1-2.4c-.8.6-1.9.9-3.1.9-2.4 0-4.4-1.6-5.2-3.8H3.6v2.4A9 9 0 0 0 12 21z"/><path d="M6.8 13.4a5.4 5.4 0 0 1 0-3.4V7.6H3.6a9 9 0 0 0 0 8.1z"/><path d="M12 6.6c1.4 0 2.6.5 3.5 1.4l2.7-2.7A9 9 0 0 0 3.6 7.6L6.8 10c.8-2.2 2.8-3.4 5.2-3.4z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.8"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>',
+  map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  ball: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5c3 3 3 10 0 13M18.5 5.5c-3 3-3 10 0 13"/></svg>',
+  car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 17h14M4 17v-4l2-5h12l2 5v4"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>',
+  loop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>',
+  vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+};
+
+/* ---------- screens ---------- */
+let SCREEN = "home", SWAPPING = false;
+const ORDER = { home: 0, cal: 1, set: 2 };
+const paint = s => { if (s === "home") renderHome(); else if (s === "cal") renderCal(); else renderSettings(); };
+function go(s) {
+  if (SWAPPING) return;
+  if (!Sound.busy()) Sound.tap();
+  if (s === SCREEN) { paint(s); return; }
+  const cur = $("scr-" + SCREEN), next = $("scr-" + s);
+  const dir = ORDER[s] > ORDER[SCREEN] ? 1 : -1;
+  SCREEN = s; SWAPPING = true;
+  $("navCal").classList.toggle("on", s === "cal");
+  $("navSet").classList.toggle("on", s === "set");
+  paint(s);                                        // fill it before anyone sees it
+
+  cur.style.setProperty("--dx", dir);
+  next.style.setProperty("--dx", dir);
+  cur.classList.add("leaving");
+  cur.style.animation = "screenOut .19s ease forwards";
+  next.classList.remove("hide");
+  next.style.animation = "none"; void next.offsetHeight;   // restart the animation
+  next.style.animation = "screenIn .34s cubic-bezier(.2,.7,.3,1) both";
+  window.scrollTo(0, 0);
+  setTimeout(() => {
+    cur.classList.add("hide");
+    cur.classList.remove("leaving");
+    cur.style.animation = "";
+    SWAPPING = false;
+  }, 200);
+}
+
+/* ---------- HOME ---------- */
+function upcoming() {
+  const cut = Date.now() - 30 * MIN;
+  return S.events.filter(e => new Date(e.start).getTime() > cut)
+    .concat(routineEvents())
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
+}
+function routineEvents() {
+  if (!S.settings.routines) return [];
+  const out = [];
+  for (let d = 0; d < 7; d++) {
+    const day = new Date(); day.setDate(day.getDate() + d);
+    S.routines.forEach(r => {
+      if (!r.days.includes(day.getDay())) return;
+      const [h, m] = r.time.split(":").map(Number);
+      const dt = new Date(day); dt.setHours(h, m, 0, 0);
+      if (dt.getTime() < Date.now() - 20 * MIN) return;
+      out.push({ id: "r_" + r.id + "_" + dt.toDateString(), kind: "routine", src: "routine", title: r.title, start: dt.toISOString(), alertAt: dt.toISOString(), reason: "Daily reminder" });
+    });
+  }
+  return out;
+}
+
+function renderHome() {
+  const list = upcoming(), next = list[0];
+  let h = "";
+
+  if (!next) {
+    h += `<div class="eyebrow">Next up</div>
+    <div class="empty"><h3>Nothing scheduled</h3>
+    <p>Pair a calendar and this fills itself in. Or add something by hand from the calendar.</p>
+    <button class="btn" onclick="go('set')">Pair an app</button></div>`;
+  } else {
+    const alertAt = next.alertAt ? new Date(next.alertAt) : new Date(next.start);
+    const mins = Math.max(0, Math.round((alertAt - Date.now()) / MIN));
+    const cls = mins <= 5 ? "urgent" : mins <= 30 ? "soon" : "";
+    const total = 120, pct = Math.max(0, Math.min(1, 1 - mins / total));
+    const C = 2 * Math.PI * 45, off = C * (1 - pct);
+    const isLeave = next.kind !== "assignment";
+    const big = mins < 60 ? mins : Math.round(mins / 60);
+    const unit = mins < 60 ? "min" : (mins < 1440 ? "hours" : "days");
+    const bigv = mins < 1440 ? big : Math.round(mins / 1440);
+
+    h += `<div class="eyebrow">Next up</div>
+    <div class="hero ${cls}" onclick="openDetail('${next.id}')" style="cursor:pointer">
+      <div class="hero-top">
+        <div class="ring">
+          <svg viewBox="0 0 104 104"><circle class="track" cx="52" cy="52" r="45"/>
+          <circle class="fill" cx="52" cy="52" r="45" stroke-dasharray="${C}" stroke-dashoffset="${off}"/></svg>
+          <div class="ring-mid"><div class="ring-num num">${bigv}</div><div class="ring-unit">${unit}</div></div>
+        </div>
+        <div class="hero-what">
+          <div class="hero-kind">${mins <= 2 ? (isLeave ? "Leave now" : "Do it now") : (isLeave ? "Until you leave" : "Until the nudge")}</div>
+          <div class="hero-title">${esc(next.title)}</div>
+          <div class="hero-sub">${fmtDay(next.start)} · ${fmtTime(next.start)}${next.place && next.place.name ? " · " + esc(next.place.name) : ""}${next.course ? " · " + esc(next.course) : ""}</div>
+        </div>
+      </div>
+      <div class="hero-leave">
+        <span class="leave-label">${isLeave ? "Leave by" : "Nudge at"}</span>
+        <span class="leave-time num">${fmtTime(alertAt)}</span>
+        <span class="leave-why">${esc(next.reason || "")}</span>
+      </div>
+    </div>
+`;
+  }
+
+  const chips = [];
+  if (S.settings.weather && WEATHER)
+    chips.push(`<div class="chip"><div class="chip-k">Right now</div><div class="chip-v num">${WEATHER.now}°</div><div class="chip-s">${WCODE(WEATHER.code)} · ${WEATHER.hi}°/${WEATHER.lo}°${WEATHER.rain > 25 ? " · " + WEATHER.rain + "% rain" : ""}</div></div>`);
+  if (S.settings.sports) SPORTS.slice(0, 4).forEach(g =>
+    chips.push(`<div class="chip"><div class="chip-k">${g.state === "in" ? "Live" : g.state === "post" ? "Final" : "Upcoming"}</div><div class="chip-v" style="font-size:15px">${esc(g.score || g.name)}</div><div class="chip-s">${esc(g.detail)}</div></div>`));
+  if (chips.length) h += `<div class="eyebrow">Around you</div><div class="strip">${chips.join("")}</div>`;
+
+  if (S.suggestions.length) {
+    h += `<div class="eyebrow">Spotted in your email</div>`;
+    S.suggestions.slice(0, 4).forEach(s => {
+      h += `<div class="card" style="margin-bottom:10px">
+        <div class="card-t">${esc(s.title)}</div>
+        <div class="card-s">${fmtDay(s.start)} at ${fmtTime(s.start)}${s.who ? " · " + esc(s.who) : ""}</div>
+        <span class="tag t-${s.kind}">${s.kind}</span>
+        <div style="display:flex;gap:8px;margin-top:11px">
+          <button class="btn" style="flex:1;padding:10px;font-size:14px" onclick="acceptSuggestion('${s.id}')">Add it</button>
+          <button class="btn ghost" style="flex:1;padding:10px;font-size:14px" onclick="dismissSuggestion('${s.id}')">Not an event</button>
+        </div></div>`;
+    });
+  }
+
+  const rest = list.slice(1, 12);
+  if (rest.length) {
+    h += `<div class="eyebrow">Later</div><div class="tl">`;
+    let lastDay = fmtDay(next.start);
+    rest.forEach((e, i) => {
+      const d = fmtDay(e.start), show = d !== lastDay; lastDay = d;
+      h += `<div class="item" style="animation-delay:${i * 32}ms">
+        <div class="item-time num">${fmtTime(e.start)}${show ? `<small>${d}</small>` : ""}</div>
+        <div class="dot"></div>
+        <button class="card" onclick="openDetail('${e.id}')">
+          <div class="card-t">${esc(e.title)}</div>
+          <div class="card-s">${e.place && e.place.name ? esc(e.place.name) : (e.course ? esc(e.course) : (e.who ? "with " + esc(e.who) : "No location"))}</div>
+          <span class="tag t-${e.kind}">${e.kind}</span>
+        </button></div>`;
+    });
+    h += `</div>`;
+  }
+  $("scr-home").innerHTML = h;
+}
+
+/* ---------- DETAIL SHEET ---------- */
+function findEv(id) { return upcoming().find(e => e.id === id) || S.events.find(e => e.id === id); }
+function openDetail(id) {
+  const e = findEv(id); if (!e) return;
+  Sound.open();
+  const alertAt = e.alertAt ? new Date(e.alertAt) : new Date(e.start);
+  const canRoute = e.place && e.place.name;
+  const q = canRoute ? encodeURIComponent(e.place.name) : "";
+  const t = notifText(e);
+  sheet(`
+    <div class="eyebrow" style="margin-top:0">${e.kind}</div>
+    <h2>${esc(e.title)}</h2>
+    ${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}
+    <div style="margin-top:16px">
+      <div class="detail-meta"><div class="dm-k">When</div><div class="dm-v">${fmtDay(e.start)} at ${fmtTime(e.start)}<div style="color:var(--muted);font-size:12.5px;margin-top:2px">${humanGap(Math.max(0, relMin(e.start)))} from now</div></div></div>
+      ${e.place && e.place.name ? `<div class="detail-meta"><div class="dm-k">Where</div><div class="dm-v">${esc(e.place.name)}${e.room ? "<br>Room " + esc(e.room) : ""}</div></div>` : ""}
+      ${e.who ? `<div class="detail-meta"><div class="dm-k">Who</div><div class="dm-v">${esc(e.who)}</div></div>` : ""}
+      ${e.course ? `<div class="detail-meta"><div class="dm-k">Course</div><div class="dm-v">${esc(e.course)}</div></div>` : ""}
+      <div class="detail-meta"><div class="dm-k">${e.kind === "assignment" ? "Nudge at" : "Leave by"}</div>
+        <div class="dm-v num" style="font-weight:600">${fmtTime(alertAt)} <span style="font-weight:400;font-size:12.5px;color:var(--muted)">· ${fmtDay(alertAt)}</span>
+        <div style="color:var(--muted);font-size:12.5px;font-weight:400;margin-top:3px">${esc(e.reason || "")}</div></div></div>
+      ${e.travel ? `<div class="detail-meta"><div class="dm-k">Travel</div><div class="dm-v">${e.travel} min${S.paired.maps ? " with live traffic" : " estimated"}</div></div>` : ""}
+    </div>
+    <div style="background:var(--iris-soft);border-radius:16px;padding:14px;margin-top:16px">
+      <div class="chip-k" style="color:var(--iris);margin-bottom:6px">You'll be told</div>
+      <div style="font-size:14px;line-height:1.4">${esc(t.body)}</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      ${canRoute ? `<a class="btn" style="flex:1;text-decoration:none" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">Directions</a>` : ""}
+      <button class="btn ghost" style="flex:1" onclick="removeEvent('${e.id}')">Remove</button>
+    </div>`);
+}
+function removeEvent(id) {
+  S.events = S.events.filter(e => e.id !== id);
+  S.routines = S.routines.filter(r => !id.startsWith("r_" + r.id + "_"));
+  save(); closeSheet(); Sound.off(); toast("Removed"); renderHome(); if (SCREEN === "cal") renderCal();
+}
+
+/* ---------- SHEET ---------- */
+function sheet(html) {
+  $("sheetHost").innerHTML = `<div class="scrim" onclick="closeSheet()"></div><div class="sheet"><div class="grab"></div>${html}</div>`;
+  document.body.style.overflow = "hidden";
+}
+function closeSheet() {
+  const host = $("sheetHost");
+  const sh = host.querySelector(".sheet"), sc = host.querySelector(".scrim");
+  if (!sh) { host.innerHTML = ""; document.body.style.overflow = ""; return; }
+  Sound.back();
+  sh.classList.add("closing"); if (sc) sc.classList.add("closing");
+  setTimeout(() => { host.innerHTML = ""; document.body.style.overflow = ""; }, 250);
+}
+
+/* ---------- CALENDAR ---------- */
+let CAL = new Date(), SEL = new Date();
+function renderCal() {
+  const y = CAL.getFullYear(), m = CAL.getMonth();
+  const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - first.getDay());
+  const all = upcoming();
+  let cells = "";
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const dim = d.getMonth() !== m, today = sameDay(d, new Date()), sel = sameDay(d, SEL);
+    const n = all.filter(e => sameDay(e.start, d)).length;
+    cells += `<button class="day${dim ? " dim" : ""}${today ? " today" : ""}${sel ? " sel" : ""}" onclick="pickDay('${d.toISOString()}')">
+      <span>${d.getDate()}</span><span class="pips">${Array(Math.min(n, 3)).fill('<i class="pip"></i>').join("")}</span></button>`;
+  }
+  const dayEvents = all.filter(e => sameDay(e.start, SEL));
+  $("scr-cal").innerHTML = `
+    <div class="cal-head">
+      <div class="cal-title">${CAL.toLocaleDateString([], { month: "long", year: "numeric" })}</div>
+      <button class="iconbtn" onclick="shiftMonth(-1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></svg></button>
+      <button class="iconbtn" onclick="shiftMonth(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg></button>
+    </div>
+    <div class="grid">${["S", "M", "T", "W", "T", "F", "S"].map(d => `<div class="dow">${d}</div>`).join("")}${cells}</div>
+    <div class="eyebrow">${fmtDay(SEL)}</div>
+    ${dayEvents.length ? dayEvents.map(e => `<div class="item"><button class="card" onclick="openDetail('${e.id}')">
+        <div class="card-t">${esc(e.title)}</div>
+        <div class="card-s">${fmtTime(e.start)}${e.place && e.place.name ? " · " + esc(e.place.name) : ""}</div>
+        <span class="tag t-${e.kind}">${e.kind}</span></button></div>`).join("")
+      : `<div class="empty"><p style="margin:0">Nothing on this day.</p></div>`}
+    <button class="btn full" style="margin-top:14px" onclick="addForm()">Add to this day</button>
+    <div style="height:26px"></div>`;
+}
+function pickDay(iso) { SEL = new Date(iso); Sound.tap(); renderCal(); }
+function shiftMonth(n) { CAL.setMonth(CAL.getMonth() + n); Sound.tap(); renderCal(); }
+
+function addForm() {
+  Sound.open();
+  const d = new Date(SEL); const iso = d.toISOString().slice(0, 10);
+  sheet(`<div class="eyebrow" style="margin-top:0">New</div><h2>Add something</h2>
+    <label class="lbl">What</label><input class="field" id="f_t" placeholder="Dentist, essay draft, practice">
+    <label class="lbl">Type</label>
+    <select class="field" id="f_k"><option value="meeting">Meeting or appointment</option><option value="assignment">Assignment due</option></select>
+    <label class="lbl">Date</label><input class="field" id="f_d" type="date" value="${iso}">
+    <label class="lbl">Time</label><input class="field" id="f_h" type="time" value="15:00">
+    <label class="lbl">Where <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label><input class="field" id="f_p" placeholder="Address or place name">
+    <label class="lbl">Who <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label><input class="field" id="f_w" placeholder="Name">
+    <button class="btn full" style="margin-top:20px" onclick="saveNew()">Save</button>`);
+}
+async function saveNew() {
+  const t = $("f_t").value.trim(); if (!t) { toast("Give it a name"); return; }
+  const start = new Date($("f_d").value + "T" + $("f_h").value);
+  const p = $("f_p").value.trim(), w = $("f_w").value.trim();
+  S.events.push({ id: "u_" + Date.now(), src: "manual", kind: $("f_k").value, title: t, start: start.toISOString(), place: p ? { name: p } : null, who: w || null });
+  await rescheduleAll(); closeSheet(); Sound.on(); toast("Added"); renderCal(); renderHome();
+}
+
+/* ---------- SETTINGS ---------- */
+function row(ico, title, sub, right, click) {
+  return `<button class="row" ${click ? `onclick="${click}"` : ""}>
+    <div class="row-ico">${ICONS[ico]}</div>
+    <div class="row-txt"><div class="row-t">${title}</div><div class="row-s">${sub}</div></div>${right}</button>`;
+}
+const hhmm = f => { const h24 = Math.floor(f), m = Math.round((f % 1) * 60); return (h24 % 12 || 12) + (m ? ":" + String(m).padStart(2, "0") : "") + (h24 >= 12 ? "pm" : "am"); };
+function rowCfg(ico, title, sub, isOn, toggle, open) {
+  return `<div class="row" style="padding-right:15px">
+    <button class="row-ico" onclick="${open}">${ICONS[ico]}</button>
+    <button class="row-txt" onclick="${open}" style="text-align:left"><div class="row-t">${title}</div><div class="row-s">${sub}</div></button>
+    <button class="sw${isOn ? " on" : ""}" onclick="${toggle}" aria-label="toggle"></button>
+  </div>`;
+}
+const sw = on => `<div class="sw${on ? " on" : ""}"></div>`;
+const pill = (on, y, n) => `<div class="pill${on ? "" : " no"}">${on ? y : n}</div>`;
+
+function renderSettings() {
+  const p = S.paired, s = S.settings;
+  $("scr-set").innerHTML = `
+  <div class="eyebrow">Paired apps</div>
+  <div class="group">
+    ${row("google", "Google", p.google ? "Calendar, Classroom and mail are syncing" : "Calendar, Classroom, Gmail", pill(p.google, "Paired", "Pair"), "pairGoogle()")}
+    ${row("pin", "Location", p.location ? "Sharing while the app is open" : "Needed to time your departures", pill(p.location, "On", "Allow"), "pairLocation()")}
+    ${row("bell", "Notifications", !p.notifications ? "Nothing can reach you until this is on" : (BG ? "Arrive even with the app closed" : "Add to your home screen for background alerts"), pill(p.notifications && BG, "On", p.notifications ? "Finish" : "Allow"), "notifRow()")}
+    ${row("map", "Maps", p.maps ? "Live traffic and real addresses" : "Adds live traffic and address lookup", pill(p.maps, "On", "Pair"), "pairMaps()")}
+  </div>
+  <div class="note">Everything paired stays in this browser. Nothing is uploaded, because there is no server to upload it to.</div>
+
+  <div class="eyebrow">Additions</div>
+  <div class="group">
+    ${row("sun", "Weather", s.weather ? "Morning brief and severe alerts" : "Off", sw(s.weather), "tog('weather')")}
+    ${rowCfg("ball", "Sports", s.sports ? (S.teams.length ? "Following " + S.teams.map(t => t.id).join(", ") : "Tap to add a team") : "Off", s.sports, "tog('sports')", "addTeam()")}
+    ${row("car", "Traffic", s.traffic ? (Object.keys(S.routeLearning).length ? "Learned " + Object.keys(S.routeLearning).length + " of your routes" : "Timing your trips to learn your routes") : "Off", sw(s.traffic), "tog('traffic')")}
+    ${rowCfg("loop", "Daily reminders", S.routines.length ? S.routines.length + " set up, tap to edit" : "Tap to add a repeating nudge", s.routines, "tog('routines')", "editRoutines()")}
+    ${row("google", "Email scan", s.emailScan !== false ? "Suggests events, you approve each one" : "Off", sw(s.emailScan !== false), "tog('emailScan')")}
+  </div>
+
+  <div class="eyebrow">This app</div>
+  <div class="group">
+    ${row("clock", "Timing and sound", S.settings.bufferMin + " min of slack · homework at " + hhmm(S.settings.homeworkHour), `<div class="pill no">Edit</div>`, "openTiming()")}
+    ${row("map", "Connection keys", S.keys.googleClientId ? "Google key saved" : "Paste your Google and Maps keys", pill(!!S.keys.googleClientId, "Saved", "Add"), "openKeys()")}
+    ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
+    ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
+    ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
+  </div>
+  <div style="height:40px"></div>`;
+}
+
+function notifRow() {
+  if (!S.paired.notifications) { pairNotifications(); return; }
+  if (!BG) { installApp(); return; }
+  toast("You're all set — alerts arrive with the app closed");
+}
+
+function openTiming() {
+  Sound.open();
+  const s = S.settings;
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Timing and sound</h2>
+    <div class="group" style="margin-top:16px">
+      ${row("clock", "Comfort padding", s.bufferMin + " min added to every trip", `<div class="pill no num">${s.bufferMin}m</div>`, "bumpBuffer(1)")}
+      ${row("bell", "Homework nudge", "Announced at " + hhmm(s.homeworkHour) + " the day before", `<div class="pill no">${hhmm(s.homeworkHour)}</div>`, "bumpHw(1)")}
+      ${row("vol", "Button sounds", s.sounds ? "On" : "Off", sw(s.sounds), "tog('sounds',1)")}
+    </div>
+    <div class="note">Quiet hours run ${hhmm(s.quietStart)} to ${hhmm(s.quietEnd)}. An alert landing inside them moves to the edge — later if there's still time, earlier if the deadline is close.</div>
+    <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
+}
+function openKeys() {
+  Sound.open();
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Connection keys</h2>
+    <div class="note" style="margin:6px 0 0">Your own credentials from Google Cloud Console. Stored on this device only.</div>
+    <label class="lbl">Google OAuth client ID</label>
+    <input class="field" id="k_g" placeholder="xxxx.apps.googleusercontent.com" value="${esc(S.keys.googleClientId)}">
+    <label class="lbl">Google Maps API key</label>
+    <input class="field" id="k_m" placeholder="AIza..." value="${esc(S.keys.mapsKey)}">
+    <button class="btn full" style="margin-top:20px" onclick="saveKeys()">Save keys</button>`);
+}
+function tog(k, inSheet) {
+  S.settings[k] = !S.settings[k]; save();
+  S.settings[k] ? Sound.on() : Sound.off();
+  if (inSheet) { openTiming(); return; }
+  renderSettings(); renderHome();
+  if (k === "weather" && S.settings.weather) loadWeather();
+  if (k === "sports" && S.settings.sports) loadSports();
+}
+function bumpBuffer(inSheet) { const o = [5, 10, 12, 15, 20, 25]; S.settings.bufferMin = o[(o.indexOf(S.settings.bufferMin) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
+function bumpHw(inSheet) { const o = [15, 16, 17, 18, 19, 20]; S.settings.homeworkHour = o[(o.indexOf(S.settings.homeworkHour) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
+function saveKeys() { S.keys.googleClientId = $("k_g").value.trim(); S.keys.mapsKey = $("k_m").value.trim(); save(); Sound.on(); closeSheet(); toast("Keys saved"); renderSettings(); }
+function wipe() { if (!confirm("Erase everything on this device?")) return; S = JSON.parse(JSON.stringify(DEFAULTS)); save(); Sound.off(); toast("Erased"); renderSettings(); renderHome(); }
+function testNotif() { const e = upcoming()[0]; if (!e) { toast("Nothing to announce yet"); return; } delete S.fired[e.id]; deliver(e); }
+
+function addTeam() {
+  Sound.open();
+  sheet(`<div class="eyebrow" style="margin-top:0">Sports</div><h2>Follow a team</h2>
+    <label class="lbl">League</label>
+    <select class="field" id="t_l"><option value="mlb">MLB</option><option value="nba">NBA</option><option value="nfl">NFL</option><option value="nhl">NHL</option></select>
+    <label class="lbl">Team abbreviation</label>
+    <input class="field" id="t_i" placeholder="SF, LAD, NYY, GS" style="text-transform:uppercase">
+    <div class="note" style="margin-top:10px">Use the short code that shows on a scoreboard.</div>
+    <div class="group" style="margin-top:16px">
+      ${row("ball", "Before first pitch", "About an hour ahead", sw(S.settings.sportsPre), "tog('sportsPre')")}
+      ${row("ball", "Final score", "When it ends", sw(S.settings.sportsFinal), "tog('sportsFinal')")}
+    </div>
+    <button class="btn full" style="margin-top:18px" onclick="saveTeam()">Follow</button>
+    ${S.teams.length ? `<div class="eyebrow">Following</div><div class="group">${S.teams.map((t, i) => `<div class="row"><div class="row-ico">${ICONS.ball}</div><div class="row-txt"><div class="row-t">${esc(t.id)}</div><div class="row-s">${t.league.toUpperCase()}</div></div><button class="pill no" onclick="dropTeam(${i})">Remove</button></div>`).join("")}</div>` : ""}`);
+}
+function saveTeam() {
+  const id = $("t_i").value.trim().toUpperCase(); if (!id) { toast("Enter an abbreviation"); return; }
+  S.teams.push({ league: $("t_l").value, id }); save(); Sound.on(); closeSheet(); loadSports(); renderSettings(); toast("Following " + id);
+}
+function dropTeam(i) { S.teams.splice(i, 1); save(); Sound.off(); loadSports(); addTeam(); }
+
+function editRoutines() {
+  Sound.open();
+  const D = ["Su", "M", "Tu", "W", "Th", "F", "Sa"];
+  sheet(`<div class="eyebrow" style="margin-top:0">Daily reminders</div><h2>Repeating nudges</h2>
+    ${S.routines.length ? `<div class="group" style="margin-bottom:16px">${S.routines.map((r, i) => `<div class="row"><div class="row-ico">${ICONS.loop}</div>
+      <div class="row-txt"><div class="row-t">${esc(r.title)}</div><div class="row-s">${fmtTime(new Date("2020-01-01T" + r.time))} · ${r.days.map(d => D[d]).join(" ")}</div></div>
+      <button class="pill no" onclick="dropRoutine(${i})">Remove</button></div>`).join("")}</div>` : ""}
+    <label class="lbl">What</label><input class="field" id="r_t" placeholder="Leave for school">
+    <label class="lbl">Time</label><input class="field" id="r_h" type="time" value="07:20">
+    <label class="lbl">Days</label>
+    <div style="display:flex;gap:6px;margin-top:8px">${D.map((d, i) => `<button class="day" id="rd_${i}" style="aspect-ratio:auto;padding:11px 0;flex:1;font-size:12.5px" onclick="this.classList.toggle('sel');Sound.tap()">${d}</button>`).join("")}</div>
+    <button class="btn full" style="margin-top:20px" onclick="saveRoutine()">Add reminder</button>`);
+  [1, 2, 3, 4, 5].forEach(i => $("rd_" + i).classList.add("sel"));
+}
+function saveRoutine() {
+  const t = $("r_t").value.trim(); if (!t) { toast("Give it a name"); return; }
+  const days = [0, 1, 2, 3, 4, 5, 6].filter(i => $("rd_" + i).classList.contains("sel"));
+  if (!days.length) { toast("Pick at least one day"); return; }
+  S.routines.push({ id: Date.now(), title: t, time: $("r_h").value, days });
+  save(); Sound.on(); closeSheet(); toast("Reminder added"); renderSettings(); renderHome();
+}
+function dropRoutine(i) { S.routines.splice(i, 1); save(); Sound.off(); editRoutines(); renderHome(); }
+
+/* ---------- demo ---------- */
+async function loadDemo() {
+  const t = new Date(), mk = (h, m, d = 0) => { const x = new Date(t); x.setDate(x.getDate() + d); x.setHours(h, m, 0, 0); return x.toISOString(); };
+  const soon = new Date(Date.now() + 52 * MIN);
+  S.events = [
+    { id: "d1", src: "demo", kind: "meeting", title: "College counselor check-in", start: soon.toISOString(), room: "204", who: "Ms. Alvarez", place: { name: "Bay School of San Francisco", lat: 37.7997, lng: -122.4560 }, why: "Bring the shortlist and your junior-year transcript." },
+    { id: "d2", src: "demo", kind: "assignment", title: "AP World: DBQ rough draft", course: "AP World History", start: mk(23, 59, 1), why: "Thesis plus three documents. Posted at 3:14am — you'll hear about it this evening, not at dawn." },
+    { id: "d3", src: "demo", kind: "meeting", title: "Baseball practice", start: mk(16, 0, 1), place: { name: "Moscone Rec Center, San Francisco", lat: 37.8003, lng: -122.4360 }, who: "Coach" },
+    { id: "d4", src: "demo", kind: "assignment", title: "Earth science lab writeup", course: "Earth Science", start: mk(23, 59, 3) },
+    { id: "d5", src: "demo", kind: "meeting", title: "Dentist", start: mk(9, 30, 4), place: { name: "2000 Van Ness Ave, San Francisco", lat: 37.7930, lng: -122.4224 } }
+  ];
+  if (!S.home) S.home = { lat: 37.7749, lng: -122.4194 };
+  S.fired = {};
+  await rescheduleAll(); Sound.on(); toast("Sample day loaded"); go("home");
+}
+
+/* ---------- TUTORIAL ---------- */
+const TUT = [
+  { art: ringArt(), t: "It decides when", p: "Every other app tells you a thing exists. This one works out the moment that thing becomes useful to know, and stays quiet until then." },
+  { art: leaveArt(), t: "Leave by, not starts at", p: "Pair your calendar and location and it subtracts the drive, the traffic and a few minutes of slack. The number you see is when to walk out the door." },
+  { art: nightArt(), t: "No 3am homework alerts", p: "An assignment posted at 3am is still due tomorrow. You'll hear about it at six the evening before, when you can actually do something about it." },
+  { art: pairArt(), t: "Pair what you use", p: "Calendar, Gmail, Classroom, Maps, weather, sports. Everything stays on this device. Add and remove any of it whenever you want." }
+];
+function ringArt() {
+  return `<svg viewBox="0 0 160 160" width="160" height="160"><circle cx="80" cy="80" r="62" fill="none" stroke="var(--line)" stroke-width="11"/>
+  <circle cx="80" cy="80" r="62" fill="none" stroke="var(--iris)" stroke-width="11" stroke-linecap="round" stroke-dasharray="390" stroke-dashoffset="130" transform="rotate(-90 80 80)"/>
+  <text x="80" y="76" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="42" fill="var(--ink)">18</text>
+  <text x="80" y="98" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" letter-spacing="1.6" fill="var(--muted)">MIN</text></svg>`;
+}
+function leaveArt() {
+  return `<svg viewBox="0 0 220 150" width="220" height="150">
+  <rect x="8" y="20" width="204" height="46" rx="14" fill="var(--card)" stroke="var(--line)"/>
+  <text x="24" y="41" font-family="Inter" font-weight="700" font-size="10" letter-spacing="1.4" fill="var(--muted)">STARTS AT</text>
+  <text x="24" y="59" font-family="Bricolage Grotesque" font-weight="800" font-size="19" fill="#C6B0AD">3:00 PM</text>
+  <rect x="8" y="80" width="204" height="52" rx="14" fill="var(--iris-soft)" stroke="var(--iris)"/>
+  <text x="24" y="102" font-family="Inter" font-weight="700" font-size="10" letter-spacing="1.4" fill="var(--iris)">LEAVE BY</text>
+  <text x="24" y="122" font-family="Bricolage Grotesque" font-weight="800" font-size="22" fill="var(--iris)">2:31 PM</text>
+  <text x="196" y="118" text-anchor="end" font-family="Inter" font-size="10.5" fill="var(--iris)">17 min + 12 slack</text></svg>`;
+}
+function nightArt() {
+  return `<svg viewBox="0 0 220 140" width="220" height="140">
+  <line x1="16" y1="96" x2="204" y2="96" stroke="var(--line)" stroke-width="2"/>
+  <rect x="16" y="60" width="70" height="36" fill="#F4ECEA" opacity=".85"/>
+  <text x="51" y="116" text-anchor="middle" font-family="Inter" font-weight="600" font-size="10" fill="var(--muted)">3am</text>
+  <circle cx="51" cy="78" r="7" fill="none" stroke="#C6B0AD" stroke-width="2"/>
+  <line x1="45" y1="84" x2="57" y2="72" stroke="#C6B0AD" stroke-width="2"/>
+  <text x="160" y="116" text-anchor="middle" font-family="Inter" font-weight="600" font-size="10" fill="var(--iris)">6pm</text>
+  <circle cx="160" cy="78" r="9" fill="var(--iris)"/>
+  <path d="M156 78l3 3 6-6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M62 40 Q110 18 150 56" stroke="var(--iris)" stroke-width="2" fill="none" stroke-dasharray="4 4"/>
+  <path d="m146 50 5 7-8 2" fill="var(--iris)"/></svg>`;
+}
+function pairArt() {
+  const c = ["var(--iris)", "var(--mint)", "var(--amber)", "var(--coral)"];
+  return `<svg viewBox="0 0 200 140" width="200" height="140">
+  <circle cx="100" cy="70" r="26" fill="var(--iris)"/><text x="100" y="76" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="17" fill="#fff">OMW</text>
+  ${[[30, 30], [170, 30], [30, 112], [170, 112]].map((p, i) => `<line x1="100" y1="70" x2="${p[0]}" y2="${p[1]}" stroke="var(--line)" stroke-width="2"/><circle cx="${p[0]}" cy="${p[1]}" r="15" fill="var(--card)" stroke="${c[i]}" stroke-width="2.5"/>`).join("")}</svg>`;
+}
+let TI = 0, TUTBUSY = false;
+function startTutorial(replay) {
+  TI = 0; TUTBUSY = false;
+  const t = $("tut");
+  t.classList.remove("hide", "gone");
+  document.body.style.overflow = "hidden";
+  if (replay) closeSheet();
+  drawTut(1);
+}
+function drawTut(dir) {
+  const s = TUT[TI];
+  $("tut").style.setProperty("--td", dir || 1);
+  $("tut").innerHTML = `<div class="tut-in" style="animation:tutIn .34s cubic-bezier(.2,.7,.3,1) both">
+    <div class="tut-art">${s.art}</div>
+    <div class="tut-step">Step ${TI + 1} of ${TUT.length}</div>
+    <h1 class="tut-h">${s.t}</h1><p class="tut-p">${s.p}</p></div>
+    <div class="tut-foot">
+      <div class="dots">${TUT.map((_, i) => `<div class="tdot${i === TI ? " on" : ""}"></div>`).join("")}</div>
+      ${TI > 0 ? `<button class="btn ghost" onclick="tutStep(-1)">Back</button>` : ""}
+      <button class="btn" onclick="tutStep(1)">${TI === TUT.length - 1 ? "Start" : "Next"}</button>
+    </div>`;
+}
+function tutStep(n) {
+  if (TUTBUSY) return;
+  const t = $("tut");
+  if (TI + n >= TUT.length) {                       // last card: dissolve into the app
+    TUTBUSY = true; Sound.on();
+    S.onboarded = true; save();
+    t.classList.add("gone");
+    document.body.style.overflow = "";
+    SCREEN = "home"; go("set");
+    setTimeout(() => { t.classList.add("hide"); t.innerHTML = ""; TUTBUSY = false; toast("Pair an app to begin"); }, 460);
+    return;
+  }
+  TUTBUSY = true; Sound.tap();
+  const dir = n > 0 ? 1 : -1;
+  t.style.setProperty("--td", dir);
+  const leaving = t.querySelector(".tut-in");
+  if (leaving) leaving.style.animation = "tutOut .2s ease forwards";
+  setTimeout(() => { TI += n; drawTut(dir); TUTBUSY = false; }, 190);
+}
+
+/* ---------- boot ---------- */
+$("navCal").onclick = () => go(SCREEN === "cal" ? "home" : "cal");
+$("navSet").onclick = () => go(SCREEN === "set" ? "home" : "set");
+document.addEventListener("scroll", () => $("topbar").classList.toggle("scrolled", window.scrollY > 6), { passive: true });
+// bubbles, so a handler's own sound wins and this stays quiet
+document.addEventListener("click", e => {
+  if (e.target.closest(".card,.iconbtn,.btn,.row,.day,.sw") && !Sound.busy()) Sound.tap();
+});
+// browsers won't start audio until you touch the screen once
+["pointerdown", "keydown"].forEach(ev =>
+  document.addEventListener(ev, () => Sound.prime(), { once: true, passive: true }));
+$("ver").textContent = "v" + VERSION;
+
+let SWREG = null, BG = false, INSTALL = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (SCREEN === "set") renderSettings(); });
+function installApp() {
+  if (INSTALL) { INSTALL.prompt(); INSTALL = null; return; }
+  if (BG) { toast("Already on — alerts arrive with the app closed"); return; }
+  toast("Open your browser menu and choose Add to Home Screen");
+}
+async function initSW() {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+  try {
+    SWREG = await navigator.serviceWorker.register("./sw.js");
+    navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open) openDetail(e.data.open); });
+    if ("periodicSync" in SWREG) {
+      try {
+        const st = await navigator.permissions.query({ name: "periodic-background-sync" });
+        if (st.state === "granted") { await SWREG.periodicSync.register("omw-check", { minInterval: 15 * 60000 }); BG = true; }
+      } catch (e) {}
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
+    });
+  } catch (e) { console.warn("sw", e); }
+}
+
+(async function boot() {
+  initSW();
+  if (!S.onboarded) startTutorial(false);
+  if (S.paired.location && navigator.permissions) {
+    try { const st = await navigator.permissions.query({ name: "geolocation" }); if (st.state === "granted") pairLocation(); } catch (e) {}
+  }
+  if (S.paired.maps && S.keys.mapsKey) pairMaps();
+  await rescheduleAll();
+  renderHome();
+  if (S.settings.weather) loadWeather();
+  if (S.settings.sports) loadSports();
+  const hash = location.hash.match(/e=([^&]+)/);
+  if (hash) setTimeout(() => openDetail(decodeURIComponent(hash[1])), 400);
+  setInterval(tick, 20000);
+  setInterval(() => { if (S.settings.sports) loadSports(); if (S.settings.weather) loadWeather(); }, 10 * 60000);
+  setInterval(() => { if (TOKEN) syncGoogle().then(renderHome); }, 5 * 60000);
+  setInterval(() => { if (TOKEN) scanGmail(); }, 15 * 60000);
+})();
+
+</script>
+</body>
+</html>
