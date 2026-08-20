@@ -297,7 +297,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.4.1";
+const VERSION = "1.4.3";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -445,7 +445,7 @@ const DEFAULTS = {
     quietStart: 21.5,       // no notifications after 9:30pm
     quietEnd: 7,            // or before 7am
     homeworkHour: 18,       // aim assignment alerts for 6pm the day before
-    sports: false, weather: false, traffic: false, routines: true, emailScan: true,
+    sports: false, weather: false, traffic: false, routines: true, emailScan: true, autoAccept: true,
     weatherMorning: true, weatherSevere: true,
     sportsPre: true, sportsScore: false, sportsFinal: true
   },
@@ -980,10 +980,63 @@ function parseWhen(text, received) {
   return { kind: isDue ? "assignment" : "meeting", when: d };
 }
 
+/** Plain-language yes and no. Checked in that order — a "sorry, can't" that
+ *  also contains "sounds good" should still count as a no. */
+const NO_RE = /\b(can'?t make it|cannot make it|won'?t work|does ?n'?t work|not going to work|unable to|have to decline|need to decline|can'?t do|rain ?check|another time|reschedul|no longer)\b/;
+const YES_RE = /\b(yes|yep|yeah|yup|sure|sounds good|sounds great|works for me|that works|see you then|see you there|i'?ll be there|i'?ll come|i'?m in|count me in|confirm(ed|ing)?|perfect|will do|happy to|looking forward)\b/;
+
+/**
+ * Look through the whole email thread for a message YOU sent after the
+ * proposal, and read it as a yes, a no, or neither.
+ */
+async function replyVerdict(threadId, myEmail, token, afterMs) {
+  if (!threadId) return null;
+  try {
+    const t = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/threads/" + threadId +
+      "?format=metadata&metadataHeaders=From", token);
+    const me = String(myEmail || "").toLowerCase();
+    for (const m of (t.messages || [])) {
+      const H = {}; (m.payload && m.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
+      const sentByMe = (m.labelIds || []).includes("SENT") || (H.from || "").toLowerCase().includes(me);
+      if (!sentByMe) continue;
+      const when = Number(m.internalDate || 0);
+      if (afterMs && when && when <= afterMs) continue;      // must come after the ask
+      const s = (m.snippet || "").toLowerCase();
+      if (NO_RE.test(s)) return "no";
+      if (YES_RE.test(s)) return "yes";
+    }
+  } catch (e) { console.warn("thread", e); }
+  return null;
+}
+
+/**
+ * Cheap change detector. getProfile costs 1 quota unit and returns a historyId
+ * that changes whenever the mailbox does. Poll this often; only run the real
+ * scan (which is ~20 requests) when the number actually moved.
+ */
+let HIST = {}, SCANNING = false, LASTSCAN = 0;
+async function pollGmail(force) {
+  if (!anyToken() || S.settings.emailScan === false || SCANNING) return;
+  let changed = !!force;
+  for (const acct of ACCOUNTS) {
+    try {
+      const p = await gfetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", acct.token);
+      if (p.historyId && HIST[acct.email] !== p.historyId) {
+        if (HIST[acct.email]) changed = true;      // first read just sets the baseline
+        HIST[acct.email] = p.historyId;
+      }
+    } catch (e) {}
+  }
+  if (!changed) return;
+  if (Date.now() - LASTSCAN < 20000) return;       // never more than once per 20s
+  SCANNING = true;
+  try { await scanGmail(); } finally { SCANNING = false; LASTSCAN = Date.now(); }
+}
+
 async function scanGmail() {
   if (!anyToken() || S.settings.emailScan === false) return;
   const dropped = Store.get("omw_dismissed", {});
-  const found = [];
+  const found = [], autoAdd = [];
   for (const acct of ACCOUNTS) {
     const T = acct.token, tag = "m" + Math.abs(hashStr(acct.email)) + "_";
     try {
@@ -997,16 +1050,38 @@ async function scanGmail() {
         const H = {}; (d.payload && d.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
         const hit = parseWhen((H.subject || "") + ". " + (d.snippet || ""), H.date);
         if (!hit) continue;
-        found.push({
+        const item = {
           id, src: "gmail", account: acct.email, kind: hit.kind, title: H.subject || "(no subject)",
           start: hit.when.toISOString(),
           who: (H.from || "").replace(/<[^>]*>/, "").replace(/"/g, "").trim() || null,
           why: "From email: " + (d.snippet || "").slice(0, 170)
-        });
+        };
+        if (S.settings.autoAccept !== false && hit.kind === "meeting") {
+          const verdict = await replyVerdict(msg.threadId, acct.email, T, Number(d.internalDate || 0));
+          if (verdict === "no") {                       // you turned it down — stop asking
+            dropped[id] = 1; Store.set("omw_dismissed", dropped);
+            continue;
+          }
+          if (verdict === "yes") {
+            item.src = "gmail-auto"; item.auto = true;
+            item.why = "Added on its own because you replied yes. " + item.why;
+            autoAdd.push(item);
+            continue;
+          }
+        }
+        found.push(item);
       }
     } catch (e) { console.warn("gmail", acct.email, e); }
   }
-  S.suggestions = found; save(); renderHome();
+  S.suggestions = found;
+  if (autoAdd.length) {
+    S.events = S.events.concat(autoAdd);
+    save();
+    await rescheduleAll();
+    autoAdd.forEach(e => pushLocal("auto_" + e.id, "Added to your day",
+      e.title + " — " + fmtDay(e.start) + " at " + fmtTime(e.start) + ", because you replied yes"));
+  }
+  save(); renderHome();
 }
 function acceptSuggestion(id) {
   const s = S.suggestions.find(x => x.id === id); if (!s) return;
@@ -1214,7 +1289,7 @@ function renderHome() {
         <button class="card" onclick="openDetail('${e.id}')">
           <div class="card-t">${esc(e.title)}</div>
           <div class="card-s">${e.place && e.place.name ? esc(e.place.name) : (e.course ? esc(e.course) : (e.who ? "with " + esc(e.who) : "No location"))}</div>
-          <span class="tag t-${e.kind}">${e.kind}</span>
+          <span class="tag t-${e.kind}">${e.kind}</span>${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}
         </button></div>`;
     });
     h += `</div>`;
@@ -1365,7 +1440,7 @@ function renderSettings() {
     ${rowCfg("ball", "Sports", s.sports ? (S.teams.length ? "Following " + S.teams.map(t => t.id).join(", ") : "Tap to add a team") : "Off", s.sports, "tog('sports')", "addTeam()")}
     ${row("car", "Traffic", s.traffic ? (Object.keys(S.routeLearning).length ? "Learned " + Object.keys(S.routeLearning).length + " of your routes" : "Timing your trips to learn your routes") : "Off", sw(s.traffic), "tog('traffic')")}
     ${rowCfg("loop", "Daily reminders", S.routines.length ? S.routines.length + " set up, tap to edit" : "Tap to add a repeating nudge", s.routines, "tog('routines')", "editRoutines()")}
-    ${row("google", "Email scan", s.emailScan !== false ? "Suggests events, you approve each one" : "Off", sw(s.emailScan !== false), "tog('emailScan')")}
+    ${rowCfg("google", "Email scan", s.emailScan === false ? "Off" : (s.autoAccept !== false ? "Suggests events, and adds the ones you said yes to" : "Suggests events, you approve each one"), s.emailScan !== false, "tog('emailScan')", "openEmailScan()")}
   </div>
 
   <div class="eyebrow">This app</div>
@@ -1377,6 +1452,19 @@ function renderSettings() {
     ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
   </div>
   <div style="height:40px"></div>`;
+}
+
+function openEmailScan() {
+  Sound.open();
+  const s = S.settings;
+  sheet(`<div class="eyebrow" style="margin-top:0">Additions</div><h2>Email scan</h2>
+    <div class="group" style="margin-top:16px">
+      ${row("google", "Read recent mail", s.emailScan !== false ? "Last 10 days, subjects and previews only" : "Off", sw(s.emailScan !== false), "tog('emailScan',2)")}
+      ${row("loop", "Add when I reply yes", s.autoAccept !== false ? "Skips the approval step" : "Always ask first", sw(s.autoAccept !== false), "tog('autoAccept',2)")}
+    </div>
+    <div class="note">If someone proposes a time and you write back something like "sounds good" or "see you then", it goes straight onto your schedule. Reply that you can't make it and the suggestion disappears instead.</div>
+    <div class="note" style="margin-top:10px">It reads plain wording, so it will occasionally get one wrong. Anything added this way says so, and removing it takes one tap.</div>
+    <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
 }
 
 function notifRow() {
@@ -1410,6 +1498,7 @@ function openKeys() {
 function tog(k, inSheet) {
   S.settings[k] = !S.settings[k]; save();
   S.settings[k] ? Sound.on() : Sound.off();
+  if (inSheet === 2) { openEmailScan(); return; }
   if (inSheet) { openTiming(); return; }
   renderSettings(); renderHome();
   if (k === "weather" && S.settings.weather) loadWeather();
@@ -1618,8 +1707,14 @@ async function initSW() {
   if (hash) setTimeout(() => openDetail(decodeURIComponent(hash[1])), 400);
   setInterval(tick, 20000);
   setInterval(() => { if (S.settings.sports) loadSports(); if (S.settings.weather) loadWeather(); }, 10 * 60000);
-  setInterval(() => { if (anyToken()) syncGoogle().then(renderHome); }, 5 * 60000);
-  setInterval(() => { if (anyToken()) scanGmail(); }, 15 * 60000);
+  setInterval(() => { if (anyToken()) syncGoogle().then(renderHome); }, 4 * 60000);
+  setInterval(() => pollGmail(), 30000);                  // 1 unit per account
+  setInterval(() => pollGmail(true), 10 * 60000);         // safety net
+  document.addEventListener("visibilitychange", () => {   // you just opened it
+    if (document.hidden || !anyToken()) return;
+    pollGmail(true);
+    syncGoogle().then(renderHome);
+  });
 })();
 
 </script>
