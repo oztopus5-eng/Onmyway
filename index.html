@@ -252,6 +252,12 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 .tdot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:width .34s cubic-bezier(.3,1.2,.4,1),background .3s,border-radius .3s}
 .tdot.on{background:var(--iris);width:22px;border-radius:4px}
 
+/* ---------- map ---------- */
+#mapbox{height:190px;border-radius:16px;overflow:hidden;margin-top:14px;border:1px solid var(--line);background:var(--line)}
+.leaflet-container{font:inherit;background:var(--paper)}
+.leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.75)}
+.pinhint{font-size:12px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.4}
+
 /* ---------- toast + version ---------- */
 #toast{
   position:fixed;left:50%;bottom:calc(26px + var(--safe-b));transform:translate(-50%,90px);
@@ -332,7 +338,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.6.0";
+const VERSION = "1.6.1";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -1558,6 +1564,7 @@ function openDetail(id) {
   const canRoute = e.place && e.place.name;
   const q = canRoute ? encodeURIComponent(e.place.name) : "";
   const t = notifText(e);
+  setTimeout(() => drawMap(e), 60);
   sheet(`
     <div class="eyebrow" style="margin-top:0">${e.kind}</div>
     <h2>${esc(e.title)}</h2>
@@ -1573,7 +1580,9 @@ function openDetail(id) {
         <div style="color:var(--muted);font-size:12.5px;font-weight:400;margin-top:3px">${esc(e.reason || "")}</div></div></div>
       ${e.travel ? `<div class="detail-meta"><div class="dm-k">Travel</div><div class="dm-v">${e.travel} min${S.paired.maps ? " with live traffic" : " by road"}${e.place && e.place.rough ? " — location is only a rough guess" : ""}</div></div>` : ""}
     </div>
-    ${e.place && e.place.name ? `<button class="btn ghost full" style="margin-top:14px" onclick="pinPlace(${JSON.stringify(e.place.name).replace(/"/g, "&quot;")})">${e.place.pinned ? "Re-pin from where you are" : "I'm here now — pin this place exactly"}</button>` : ""}
+    ${e.place && e.place.lat ? `<div id="mapbox"></div>
+      <div class="pinhint">${e.place.pinned ? "You placed this one yourself." : "Wrong spot? Drag the red pin to fix it."}</div>` : ""}
+    ${e.place && e.place.name ? `<button class="btn ghost full" style="margin-top:12px" onclick="pinPlace(${JSON.stringify(e.place.name).replace(/"/g, "&quot;")})">${e.place.pinned ? "Re-pin from where you are" : "I'm here now — pin this place exactly"}</button>` : ""}
     <div style="background:var(--iris-soft);border-radius:16px;padding:14px;margin-top:16px">
       <div class="chip-k" style="color:var(--iris);margin-bottom:6px">You'll be told</div>
       <div style="font-size:14px;line-height:1.4">${esc(t.body)}</div>
@@ -1604,12 +1613,77 @@ function removeEvent(id) {
   renderHome(); if (SCREEN === "cal") renderCal();
 }
 
+/* ---------- a real map, from OpenStreetMap. no key, no card. ---------- */
+let MAP = null, LEAFLET = null;
+function loadLeaflet() {
+  if (LEAFLET) return LEAFLET;
+  LEAFLET = new Promise((res, rej) => {
+    if (window.L) return res(window.L);
+    const css = document.createElement("link");
+    css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(css);
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    s.onload = () => res(window.L);
+    s.onerror = () => rej("offline");
+    document.head.appendChild(s);
+  });
+  return LEAFLET;
+}
+
+async function drawMap(ev) {
+  const host = document.getElementById("mapbox");
+  if (!host || !ev.place || !ev.place.lat) return;
+  let L;
+  try { L = await loadLeaflet(); } catch (e) { host.remove(); return; }
+  if (MAP) { try { MAP.remove(); } catch (e) {} MAP = null; }
+
+  const dest = [ev.place.lat, ev.place.lng];
+  const here = (ORIGIN || S.home) ? [(ORIGIN || S.home).lat, (ORIGIN || S.home).lng] : null;
+  MAP = L.map(host, { zoomControl: false, attributionControl: true }).setView(dest, 14);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18, attribution: "© OpenStreetMap"
+  }).addTo(MAP);
+
+  const dot = (color, r) => L.divIcon({
+    className: "", iconSize: [r * 2, r * 2], iconAnchor: [r, r],
+    html: `<div style="width:${r * 2}px;height:${r * 2}px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.35)"></div>`
+  });
+
+  const marker = L.marker(dest, { icon: dot("#D96A62", 9), draggable: true }).addTo(MAP);
+  marker.on("dragend", () => {
+    const p = marker.getLatLng();
+    S.geo[geoKey(ev.place.name)] = { lat: p.lat, lng: p.lng, pinned: true, label: "Placed by hand" };
+    S.events.forEach(x => { if (x.place && geoKey(x.place.name) === geoKey(ev.place.name)) { x.place.lat = p.lat; x.place.lng = p.lng; x.place.rough = false; x.place.pinned = true; } });
+    save(); Sound.on(); toast("Moved — that's where it is now");
+    rescheduleAll().then(renderHome);
+  });
+
+  if (here) {
+    L.marker(here, { icon: dot("#6FA890", 7) }).addTo(MAP);
+    MAP.fitBounds(L.latLngBounds([here, dest]).pad(0.3));
+    try {                                        // the actual road route, from OSRM
+      const u = "https://router.project-osrm.org/route/v1/driving/" +
+        here[1].toFixed(5) + "," + here[0].toFixed(5) + ";" +
+        dest[1].toFixed(5) + "," + dest[0].toFixed(5) + "?overview=full&geometries=geojson";
+      const d = await (await fetch(u)).json();
+      if (d.code === "Ok" && d.routes[0]) {
+        const line = d.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        L.polyline(line, { color: "#D96A62", weight: 4, opacity: .85 }).addTo(MAP);
+        MAP.fitBounds(L.latLngBounds(line).pad(0.15));
+      }
+    } catch (e) {}
+  }
+  setTimeout(() => { try { MAP.invalidateSize(); } catch (e) {} }, 120);
+}
+
 /* ---------- SHEET ---------- */
 function sheet(html) {
   $("sheetHost").innerHTML = `<div class="scrim" onclick="closeSheet()"></div><div class="sheet"><div class="grab"></div>${html}</div>`;
   document.body.style.overflow = "hidden";
 }
 function closeSheet() {
+  if (MAP) { try { MAP.remove(); } catch (e) {} MAP = null; }
   const host = $("sheetHost");
   const sh = host.querySelector(".sheet"), sc = host.querySelector(".scrim");
   if (!sh) { host.innerHTML = ""; document.body.style.overflow = ""; return; }
