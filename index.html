@@ -264,10 +264,45 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
   font-size:10px;font-weight:600;letter-spacing:.05em;color:#C6AEAB;
   font-variant-numeric:tabular-nums;pointer-events:none;
 }
+/* ---------- opening ---------- */
+#splash{
+  position:fixed;inset:0;z-index:200;background:var(--paper);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+  transition:opacity .42s ease, transform .42s cubic-bezier(.3,.8,.3,1);
+}
+#splash.gone{opacity:0;transform:scale(1.07);pointer-events:none}
+#splash svg{overflow:visible}
+.sp-track{fill:none;stroke:var(--line);stroke-width:11;opacity:0;animation:spFade .3s .04s forwards}
+.sp-arc{
+  fill:none;stroke:var(--iris);stroke-width:11;stroke-linecap:round;
+  stroke-dasharray:276;stroke-dashoffset:276;
+  transform:rotate(-90deg);transform-origin:60px 60px;
+  animation:spDraw .8s .1s cubic-bezier(.35,.75,.3,1) forwards;
+}
+.sp-dot{fill:var(--iris);transform:scale(0);transform-origin:60px 60px;animation:spPop .44s .52s cubic-bezier(.3,1.7,.5,1) forwards}
+.sp-word{
+  font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:21px;letter-spacing:-.03em;
+  opacity:0;transform:translateY(9px);animation:spUp .46s .64s cubic-bezier(.2,.8,.3,1) forwards;
+}
+.sp-word span{color:var(--iris)}
+@keyframes spFade{to{opacity:1}}
+@keyframes spDraw{to{stroke-dashoffset:77}}
+@keyframes spPop{to{transform:scale(1)}}
+@keyframes spUp{to{opacity:1;transform:none}}
+
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
+
+<div id="splash">
+  <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+    <circle class="sp-track" cx="60" cy="60" r="44"/>
+    <circle class="sp-arc" cx="60" cy="60" r="44"/>
+    <circle class="sp-dot" cx="60" cy="60" r="9"/>
+  </svg>
+  <div class="sp-word">On My <span>Way</span></div>
+</div>
 
 <div id="app">
   <div class="topbar" id="topbar">
@@ -297,7 +332,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.5.0";
+const VERSION = "1.5.2";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -1153,8 +1188,11 @@ async function scanGmail() {
       for (const msg of (l.messages || []).slice(0, 18)) {
         const id = tag + msg.id;
         if (dropped[id] || S.events.some(e => e.id === id)) continue;
-        const d = await gfetchA("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
-          "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date", acct);
+        let d;
+        try {
+          d = await gfetchA("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
+            "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date", acct);
+        } catch (e) { console.warn("message", e); continue; }
         const H = {}; (d.payload && d.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
         const blob = (H.subject || "") + ". " + (d.snippet || "");
         const hit = parseWhen(blob, H.date);
@@ -1166,7 +1204,9 @@ async function scanGmail() {
           why: "From email: " + (d.snippet || "").slice(0, 170)
         };
         if (S.settings.autoAccept !== false && hit.kind === "meeting") {
-          const verdict = await replyVerdict(msg.threadId, acct.email, T, Number(d.internalDate || 0));
+          let verdict = null;
+          try { verdict = await replyVerdict(msg.threadId, acct, Number(d.internalDate || 0)); }
+          catch (e) { console.warn("reply check", e); }
           if (verdict === "no") {                       // you turned it down — stop asking
             dropped[id] = 1; Store.set("omw_dismissed", dropped);
             SCANLOG.items.push({ subject: item.title, why: "you replied that you can't make it" });
@@ -1832,7 +1872,17 @@ async function initSW() {
   } catch (e) { console.warn("sw", e); }
 }
 
+function dropSplash() {
+  const sp = document.getElementById("splash");
+  if (!sp) return;
+  setTimeout(() => {
+    sp.classList.add("gone");
+    setTimeout(() => sp.remove(), 460);
+  }, 1050);
+}
+
 (async function boot() {
+  dropSplash();
   initSW();
   await catchWorkerReturn();
   if (!S.onboarded) startTutorial(false);
