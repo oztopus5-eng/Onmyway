@@ -1,6 +1,6 @@
 /* On My Way — service worker
    Two jobs: keep the app openable offline, and deliver alerts when the tab is closed. */
-const CACHE = "omw-v1.6.1";
+const CACHE = "omw-v1.6.2";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -9,15 +9,32 @@ self.addEventListener("install", e => {
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
+/**
+ * Code is network-first: always try for a fresh copy so an upload actually
+ * shows up. Cache is only the fallback for when you're offline.
+ * Images stay cache-first — they never change.
+ */
+const CODEish = p => /\.(html|js|json)$|\/$/.test(p);
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
-  if (u.origin !== location.origin || e.request.method !== "GET") return;   // never cache API calls
+  if (u.origin !== location.origin || e.request.method !== "GET") return;   // never touch API calls
+
+  if (e.request.mode === "navigate" || CODEish(u.pathname)) {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+        return r;
+      }).catch(() => caches.match(e.request).then(hit => hit || caches.match("./index.html")))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
       const copy = r.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
       return r;
-    }).catch(() => caches.match("./index.html")))
+    }))
   );
 });
 

@@ -338,7 +338,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.6.1";
+const VERSION = "1.6.2";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -1792,6 +1792,7 @@ function renderSettings() {
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
     ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
     ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
+    ${row("loop", "Force update", "Clears the cache and reloads from GitHub", `<div class="pill no">Reload</div>`, "forceUpdate()")}
     ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
   </div>
   <div style="height:40px"></div>`;
@@ -1874,6 +1875,17 @@ function bumpBuffer(inSheet) { const o = [5, 10, 12, 15, 20, 25]; S.settings.buf
 function bumpHw(inSheet) { const o = [15, 16, 17, 18, 19, 20]; S.settings.homeworkHour = o[(o.indexOf(S.settings.homeworkHour) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
 function bumpBlind(inSheet) { const o = [30, 45, 60, 90, 120]; S.settings.blindLead = o[(o.indexOf(S.settings.blindLead || 60) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
 function saveKeys() { S.keys.googleClientId = $("k_g").value.trim(); S.keys.mapsKey = $("k_m").value.trim(); S.keys.workerUrl = ($("k_w") ? $("k_w").value.trim() : S.keys.workerUrl); save(); Sound.on(); closeSheet(); toast("Keys saved"); renderSettings(); }
+async function forceUpdate() {
+  toast("Fetching the newest build");
+  try {
+    if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
+    if (navigator.serviceWorker) {
+      const rs = await navigator.serviceWorker.getRegistrations();
+      for (const r of rs) await r.unregister();
+    }
+  } catch (e) {}
+  location.replace(location.pathname + "?u=" + Date.now());
+}
 function wipe() { if (!confirm("Erase everything on this device?")) return; S = JSON.parse(JSON.stringify(DEFAULTS)); save(); Sound.off(); toast("Erased"); renderSettings(); renderHome(); }
 function testNotif() { const e = upcoming()[0]; if (!e) { toast("Nothing to announce yet"); return; } delete S.fired[e.id]; deliver(e); }
 
@@ -2055,6 +2067,16 @@ async function initSW() {
     }
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
+      if (!document.hidden && SWREG) SWREG.update().catch(() => {});
+    });
+    SWREG.addEventListener("updatefound", () => {
+      const w = SWREG.installing;
+      if (!w) return;
+      w.addEventListener("statechange", () => {
+        if (w.state === "installed" && navigator.serviceWorker.controller) {
+          toast("New version ready — reopen the app to load it");
+        }
+      });
     });
   } catch (e) { console.warn("sw", e); }
 }
