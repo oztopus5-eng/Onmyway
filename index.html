@@ -332,7 +332,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.5.4";
+const VERSION = "1.6.0";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -491,6 +491,7 @@ const DEFAULTS = {
   suggestions: [],          // parsed out of email, waiting on your yes
   accounts: [],             // addresses of every Google account you've paired
   vault: [],                // {email, blob} — sealed refresh tokens, only the worker can read them
+  banned: {},               // things you deleted on purpose. never coming back.
   teams: [],                // [{league,id,name}]
   events: [],               // unified event objects
   routines: [],             // [{id,title,time:"07:20",days:[1,2,3,4,5],place?}]
@@ -502,7 +503,7 @@ let S = Object.assign({}, DEFAULTS, Store.get("omw", {}));
 S.settings = Object.assign({}, DEFAULTS.settings, S.settings || {});
 S.keys = Object.assign({}, DEFAULTS.keys, S.keys || {});
 S.paired = Object.assign({}, DEFAULTS.paired, S.paired || {});
-S.geo = S.geo || {}; S.suggestions = S.suggestions || []; S.vault = S.vault || [];
+S.geo = S.geo || {}; S.suggestions = S.suggestions || []; S.vault = S.vault || []; S.banned = S.banned || {};
 const save = () => Store.set("omw", S);
 
 /* ---------- time helpers ---------- */
@@ -547,7 +548,16 @@ function haversine(a, b) {
  */
 async function travelMinutes(origin, dest, destKey) {
   let base = null;
-  if (S.paired.maps && window.google && google.maps && google.maps.DirectionsService) {
+  if (!S.paired.maps) {                        // OSRM: real roads, no key, no card
+    try {
+      const u = "https://router.project-osrm.org/route/v1/driving/" +
+        origin.lng.toFixed(5) + "," + origin.lat.toFixed(5) + ";" +
+        dest.lng.toFixed(5) + "," + dest.lat.toFixed(5) + "?overview=false";
+      const d = await (await fetch(u)).json();
+      if (d.code === "Ok" && d.routes && d.routes[0]) base = Math.max(3, Math.round(d.routes[0].duration / 60 * 1.15));
+    } catch (e) {}
+  }
+  if (base == null && S.paired.maps && window.google && google.maps && google.maps.DirectionsService) {
     base = await new Promise(res => {
       try {
         new google.maps.DirectionsService().route({
@@ -562,9 +572,9 @@ async function travelMinutes(origin, dest, destKey) {
       } catch (e) { res(null); }
     });
   }
-  if (base == null) {
-    const km = haversine(origin, dest) * 1.32;      // roads aren't straight
-    base = Math.max(5, Math.round(km / 38 * 60));   // ~38 km/h door to door
+  if (base == null) {                               // nothing reachable — estimate
+    const km = haversine(origin, dest) * 1.32;
+    base = Math.max(5, Math.round(km / 38 * 60));
   }
   const L = S.routeLearning[destKey];
   if (L && L.n >= 2) base = Math.round(base * L.ratio);
@@ -612,30 +622,77 @@ function respectQuietHours(when, deadline) {
  * arrive as text, and text has no distance. Without this every trip was
  * silently worth zero minutes.
  */
+const geoKey = n => String(n || "").toLowerCase().trim().replace(/\s+/g, " ").slice(0, 90);
+
+/**
+ * Turn a place NAME into coordinates.
+ * Open-Meteo only knows cities, which is why "Bay School of San Francisco"
+ * used to land downtown. Photon and Nominatim are both built on OpenStreetMap
+ * and know actual buildings — schools, shops, street addresses. Free, no key.
+ */
 async function geocode(name) {
   if (!name) return null;
-  const k = name.toLowerCase().trim().slice(0, 90);
+  const k = geoKey(name);
   if (S.geo[k]) return S.geo[k];
+  const near = ORIGIN || S.home;
   let r = null;
+
   if (S.paired.maps && window.google && google.maps && google.maps.Geocoder) {
     r = await new Promise(res => {
       try {
         new google.maps.Geocoder().geocode({ address: name }, (x, st) => {
-          if (st === "OK" && x[0]) { const l = x[0].geometry.location; res({ lat: l.lat(), lng: l.lng() }); }
+          if (st === "OK" && x[0]) { const l = x[0].geometry.location; res({ lat: l.lat(), lng: l.lng(), label: x[0].formatted_address }); }
           else res(null);
         });
       } catch (e) { res(null); }
     });
   }
-  if (!r) {                                   // keyless fallback: city-level only
+
+  if (!r) {                                    // Photon — knows buildings by name
+    try {
+      let u = "https://photon.komoot.io/api/?limit=1&q=" + encodeURIComponent(name);
+      if (near) u += "&lat=" + near.lat.toFixed(4) + "&lon=" + near.lng.toFixed(4);
+      const d = await (await fetch(u)).json();
+      const f = d.features && d.features[0];
+      if (f && f.geometry) {
+        const p = f.properties || {};
+        r = {
+          lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0],
+          label: [p.name, p.street, p.city].filter(Boolean).join(", ") || name
+        };
+      }
+    } catch (e) {}
+  }
+
+  if (!r) {                                    // Nominatim — same data, different index
+    try {
+      const d = await (await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+        encodeURIComponent(name))).json();
+      if (d && d[0]) r = { lat: +d[0].lat, lng: +d[0].lon, label: d[0].display_name };
+    } catch (e) {}
+  }
+
+  if (!r) {                                    // last resort: the city, roughly
     try {
       const q = name.replace(/^[\d\-\s]+/, "").split(",")[0].trim();
       const d = await (await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(q))).json();
-      if (d.results && d.results[0]) r = { lat: d.results[0].latitude, lng: d.results[0].longitude, rough: true };
+      if (d.results && d.results[0]) r = { lat: d.results[0].latitude, lng: d.results[0].longitude, rough: true, label: d.results[0].name };
     } catch (e) {}
   }
+
   if (r) { S.geo[k] = r; save(); }
   return r;
+}
+
+/** Standing where you are, claim this spot for a name. Beats any lookup. */
+function pinPlace(name) {
+  const o = ORIGIN;
+  if (!o) { toast("Turn location on first"); return; }
+  S.geo[geoKey(name)] = { lat: o.lat, lng: o.lng, pinned: true, label: "Pinned from where you stood" };
+  S.events.forEach(e => { if (e.place && geoKey(e.place.name) === geoKey(name)) { e.place.lat = o.lat; e.place.lng = o.lng; e.place.rough = false; } });
+  save(); Sound.on(); closeSheet();
+  toast(name + " pinned exactly");
+  rescheduleAll().then(renderHome);
 }
 
 async function computeAlert(ev, origin) {
@@ -650,12 +707,12 @@ async function computeAlert(ev, origin) {
   let travel = 0, reason = "";
   if (ev.place && !ev.place.lat && ev.place.name) {          // resolve text to a point
     const g = await geocode(ev.place.name);
-    if (g) { ev.place.lat = g.lat; ev.place.lng = g.lng; ev.place.rough = g.rough; }
+    if (g) { ev.place.lat = g.lat; ev.place.lng = g.lng; ev.place.rough = g.rough; ev.place.pinned = g.pinned; ev.place.label = g.label; }
   }
   if (ev.place && ev.place.lat && origin) {
     travel = await travelMinutes(origin, { lat: ev.place.lat, lng: ev.place.lng }, ev.place.name || ev.title);
     reason = travel + " min of travel plus " + S.settings.bufferMin + " min of slack" +
-      (ev.place.rough ? ", from an approximate location" : "") +
+      (ev.place.rough ? ", from a rough guess at where that is" : "") +
       (S.routeLearning[ev.place.name] && S.routeLearning[ev.place.name].n >= 2 ? ", adjusted to how long this trip really takes you" : "");
   } else if (ev.place && ev.place.name) {
     reason = "Couldn't place " + ev.place.name + " on a map, so a " + humanGap(S.settings.blindLead) + " head start";
@@ -957,7 +1014,7 @@ async function syncGoogle() {
       }
     } catch (e) { console.warn("classroom", acct.email, e); }
   }
-  S.events = keep.concat(found);
+  S.events = keep.concat(found.filter(e => !S.banned[e.id]));
   await rescheduleAll();
   if (stale) toast(stale + " needs reconnecting");
   scanGmail();
@@ -1220,7 +1277,7 @@ async function scanGmail() {
       SCANLOG.accounts.push({ email: acct.email, count: (l.messages || []).length, error: null });
       for (const msg of (l.messages || []).slice(0, 18)) {
         const id = tag + msg.id;
-        if (dropped[id] || S.events.some(e => e.id === id)) continue;
+        if (dropped[id] || S.banned[id] || S.events.some(e => e.id === id)) continue;
         let d;
         try {
           d = await gfetchA("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
@@ -1388,8 +1445,8 @@ function go(s) {
 /* ---------- HOME ---------- */
 function upcoming() {
   const cut = Date.now() - 30 * MIN;
-  return S.events.filter(e => new Date(e.start).getTime() > cut)
-    .concat(routineEvents())
+  return S.events.filter(e => new Date(e.start).getTime() > cut && !S.banned[e.id])
+    .concat(routineEvents().filter(e => !S.banned[e.id]))
     .sort((a, b) => new Date(a.start) - new Date(b.start));
 }
 function routineEvents() {
@@ -1514,21 +1571,37 @@ function openDetail(id) {
       <div class="detail-meta"><div class="dm-k">${e.kind === "assignment" ? "Nudge at" : "Leave by"}</div>
         <div class="dm-v num" style="font-weight:600">${fmtTime(alertAt)} <span style="font-weight:400;font-size:12.5px;color:var(--muted)">· ${fmtDay(alertAt)}</span>
         <div style="color:var(--muted);font-size:12.5px;font-weight:400;margin-top:3px">${esc(e.reason || "")}</div></div></div>
-      ${e.travel ? `<div class="detail-meta"><div class="dm-k">Travel</div><div class="dm-v">${e.travel} min${S.paired.maps ? " with live traffic" : " estimated"}</div></div>` : ""}
+      ${e.travel ? `<div class="detail-meta"><div class="dm-k">Travel</div><div class="dm-v">${e.travel} min${S.paired.maps ? " with live traffic" : " by road"}${e.place && e.place.rough ? " — location is only a rough guess" : ""}</div></div>` : ""}
     </div>
+    ${e.place && e.place.name ? `<button class="btn ghost full" style="margin-top:14px" onclick="pinPlace(${JSON.stringify(e.place.name).replace(/"/g, "&quot;")})">${e.place.pinned ? "Re-pin from where you are" : "I'm here now — pin this place exactly"}</button>` : ""}
     <div style="background:var(--iris-soft);border-radius:16px;padding:14px;margin-top:16px">
       <div class="chip-k" style="color:var(--iris);margin-bottom:6px">You'll be told</div>
       <div style="font-size:14px;line-height:1.4">${esc(t.body)}</div>
     </div>
     <div style="display:flex;gap:10px;margin-top:16px">
       ${canRoute ? `<a class="btn" style="flex:1;text-decoration:none" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">Directions</a>` : ""}
-      <button class="btn ghost" style="flex:1" onclick="removeEvent('${e.id}')">Remove</button>
+      <button class="btn ghost" style="flex:1" onclick="askRemove('${e.id}')">Remove</button>
+    </div>`);
+}
+function askRemove(id) {
+  const e = findEv(id); if (!e) return;
+  Sound.open();
+  sheet(`<div class="eyebrow" style="margin-top:0">Remove</div>
+    <h2>${esc(e.title)}</h2>
+    <div class="note" style="margin:8px 0 0">${e.src === "google" ? "This came from your Google Calendar. Removing it here won't touch the calendar itself, but it won't come back into this app either." : e.src && e.src.indexOf("gmail") === 0 ? "This came from an email. It won't be suggested again." : "This will be gone for good."}</div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn ghost" style="flex:1" onclick="closeSheet()">Keep it</button>
+      <button class="btn" style="flex:1;background:var(--coral)" onclick="removeEvent('${id}')">Remove</button>
     </div>`);
 }
 function removeEvent(id) {
+  S.banned[id] = Date.now();                 // the part that was missing
   S.events = S.events.filter(e => e.id !== id);
+  S.suggestions = S.suggestions.filter(e => e.id !== id);
   S.routines = S.routines.filter(r => !id.startsWith("r_" + r.id + "_"));
-  save(); closeSheet(); Sound.off(); toast("Removed"); renderHome(); if (SCREEN === "cal") renderCal();
+  const dropped = Store.get("omw_dismissed", {}); dropped[id] = 1; Store.set("omw_dismissed", dropped);
+  save(); closeSheet(); Sound.off(); toast("Removed for good");
+  renderHome(); if (SCREEN === "cal") renderCal();
 }
 
 /* ---------- SHEET ---------- */
