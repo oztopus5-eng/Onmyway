@@ -332,7 +332,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.5.2";
+const VERSION = "1.5.4";
 
 /* ---------- storage (falls back to memory in sandboxed frames) ---------- */
 const Store = (() => {
@@ -480,6 +480,7 @@ const DEFAULTS = {
     quietStart: 21.5,       // no notifications after 9:30pm
     quietEnd: 7,            // or before 7am
     homeworkHour: 18,       // aim assignment alerts for 6pm the day before
+    blindLead: 60,          // warning for anything we can't measure a trip to
     sports: false, weather: false, traffic: false, routines: true, emailScan: true, autoAccept: true,
     weatherMorning: true, weatherSevere: true,
     sportsPre: true, sportsScore: false, sportsFinal: true
@@ -657,14 +658,16 @@ async function computeAlert(ev, origin) {
       (ev.place.rough ? ", from an approximate location" : "") +
       (S.routeLearning[ev.place.name] && S.routeLearning[ev.place.name].n >= 2 ? ", adjusted to how long this trip really takes you" : "");
   } else if (ev.place && ev.place.name) {
-    reason = "Couldn't place " + ev.place.name + " on a map — timed off the start";
+    reason = "Couldn't place " + ev.place.name + " on a map, so a " + humanGap(S.settings.blindLead) + " head start";
   } else if (!origin) {
-    reason = "Location off — timed off the start";
+    reason = "Location is off, so a " + humanGap(S.settings.blindLead) + " head start";
   } else {
-    reason = "No location on this one — timed off the start";
+    reason = "Nowhere to travel to, so a " + humanGap(S.settings.blindLead) + " head start";
   }
-  const at = new Date(start.getTime() - (travel + (travel ? S.settings.bufferMin : 5)) * MIN);
-  return { at, travel, reason };
+  const lead = travel > 0
+    ? travel + S.settings.bufferMin              // we know the distance, use it
+    : (S.settings.blindLead || 60);              // we don't, so warn early
+  return { at: new Date(start.getTime() - lead * MIN), travel, reason };
 }
 
 /** Exactly the format asked for. Blanks only appear when we actually know them. */
@@ -1085,8 +1088,11 @@ const DAYNAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "frida
 function parseWhen(text, received) {
   const t = (text || "").toLowerCase();
   const isDue = /\b(due|deadline|submit by|turn it in|turn in|hand in|no later than)\b/.test(t);
-  const isMeet = /\b(meeting|meet at|call|appointment|interview|practice|rehearsal|conference|tryout|orientation|recital)\b/.test(t);
-  if (!isDue && !isMeet) return null;
+  const isMeet = /\b(meeting|meet at|meet up|call|appointment|interview|practice|rehearsal|conference|tryout|orientation|recital)\b/.test(t);
+  // plain-English invitations, which is how people actually write
+  const isInvite = /\b(want to (go|grab|get|come|meet|see|hang)|wanna|are you free|you free|let'?s (go|grab|meet|get|do)|come over|hang out|join me|pick you up|see you at)\b/.test(t)
+    || /\b(dinner|lunch|breakfast|brunch|coffee|movie|concert|party|birthday|game|trip|store)\b/.test(t) && /\?|\bthis\b|\bnext\b|\bon\b/.test(t);
+  if (!isDue && !isMeet && !isInvite) return null;
   const base = received ? new Date(received) : new Date();
   let d = null, m;
   if ((m = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/))) {
@@ -1097,19 +1103,37 @@ function parseWhen(text, received) {
     if (d.getTime() < base.getTime() - 30 * 864e5) d.setFullYear(d.getFullYear() + 1);
   } else if (/\btomorrow\b/.test(t)) { d = new Date(base); d.setDate(d.getDate() + 1); }
   else if (/\btonight\b|\btoday\b/.test(t)) { d = new Date(base); }
-  else if ((m = t.match(new RegExp("\\b(?:next\\s+)?(" + DAYNAMES.join("|") + ")\\b")))) {
+  else if ((m = t.match(new RegExp("\\b(?:this\\s+|next\\s+)?(" + DAYNAMES.join("|") + ")\\b")))) {
     d = new Date(base);
     let add = (DAYNAMES.indexOf(m[1]) - d.getDay() + 7) % 7;
     d.setDate(d.getDate() + (add || 7));
   }
   if (!d || isNaN(d)) return null;
-  let hh = isDue ? 23 : 9, mm = isDue ? 59 : 0;
-  if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m|p\.?m)\b/))) {
-    hh = (+m[1] % 12) + (m[3][0] === "p" ? 12 : 0); mm = m[2] ? +m[2] : 0;
-  }
-  d.setHours(hh, mm, 0, 0);
+  const clock = parseClock(t);
+  const kind = isDue ? "assignment" : "meeting";
+  if (clock) d.setHours(clock.h, clock.m, 0, 0);
+  else d.setHours(isDue ? 23 : 9, isDue ? 59 : 0, 0, 0);
   if (d.getTime() < Date.now()) return null;
-  return { kind: isDue ? "assignment" : "meeting", when: d };
+  return { kind, when: d, exact: !!clock };
+}
+
+/** Clock times people actually write, including the ones that are words. */
+function parseClock(t) {
+  let m;
+  if (/\bmidnight\b/.test(t)) return { h: 0, m: 0 };
+  if (/\bnoon\b|\bmidday\b/.test(t)) return { h: 12, m: 0 };
+  if ((m = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m|p\.?m)\b/)))
+    return { h: (+m[1] % 12) + (m[3][0] === "p" ? 12 : 0), m: m[2] ? +m[2] : 0 };
+  if ((m = t.match(/\b(?:at|around|by)\s+(\d{1,2})(?::(\d{2}))?\b/))) {
+    let hh = +m[1];
+    if (hh >= 1 && hh <= 7) hh += 12;               // "at 4" means the afternoon
+    if (hh > 23) return null;
+    return { h: hh, m: m[2] ? +m[2] : 0 };
+  }
+  if (/\bmorning\b/.test(t)) return { h: 9, m: 0 };
+  if (/\bafternoon\b/.test(t)) return { h: 15, m: 0 };
+  if (/\bevening\b|\btonight\b/.test(t)) return { h: 19, m: 0 };
+  return null;
 }
 
 /** Plain-language yes and no. Checked in that order — a "sorry, can't" that
@@ -1121,24 +1145,33 @@ const YES_RE = /\b(yes|yep|yeah|yup|sure|sounds good|sounds great|works for me|t
  * Look through the whole email thread for a message YOU sent after the
  * proposal, and read it as a yes, a no, or neither.
  */
-async function replyVerdict(threadId, acct, afterMs) {
-  if (!threadId) return null;
+async function readThread(threadId, acct, afterMs, baseDate) {
+  const out = { verdict: null, when: null };
+  if (!threadId) return out;
   try {
     const t = await gfetchA("https://gmail.googleapis.com/gmail/v1/users/me/threads/" + threadId +
       "?format=metadata&metadataHeaders=From", acct);
     const me = String(acct.email || "").toLowerCase();
     for (const m of (t.messages || [])) {
+      const when = Number(m.internalDate || 0);
+      if (afterMs && when && when <= afterMs) continue;      // only what came after the ask
       const H = {}; (m.payload && m.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
       const sentByMe = (m.labelIds || []).includes("SENT") || (H.from || "").toLowerCase().includes(me);
-      if (!sentByMe) continue;
-      const when = Number(m.internalDate || 0);
-      if (afterMs && when && when <= afterMs) continue;      // must come after the ask
       const s = (m.snippet || "").toLowerCase();
-      if (NO_RE.test(s)) return "no";
-      if (YES_RE.test(s)) return "yes";
+
+      // a later message can pin down the time the first one left vague
+      const clock = parseClock(s);
+      if (clock && baseDate) {
+        const d = new Date(baseDate);
+        d.setHours(clock.h, clock.m, 0, 0);
+        if (d.getTime() > Date.now()) out.when = d;
+      }
+      if (!sentByMe) continue;
+      if (NO_RE.test(s)) { out.verdict = "no"; return out; }
+      if (YES_RE.test(s) && !out.verdict) out.verdict = "yes";
     }
   } catch (e) { console.warn("thread", e); }
-  return null;
+  return out;
 }
 
 /**
@@ -1168,9 +1201,9 @@ async function pollGmail(force) {
 /** Explains, in plain words, why a message did or didn't turn into anything. */
 function parseWhy(text) {
   const t = (text || "").toLowerCase();
-  const hasWord = /\b(due|deadline|submit by|turn it in|turn in|hand in|no later than|meeting|meet at|call|appointment|interview|practice|rehearsal|conference|tryout|orientation|recital)\b/.test(t);
-  if (!hasWord) return "no meeting or deadline wording";
-  return "wording found, but no date I could read";
+  const hasWord = /\b(due|deadline|meeting|meet|call|appointment|interview|practice|rehearsal|tryout|want to|wanna|are you free|let'?s|dinner|lunch|coffee|movie|party|game|trip|store)\b/.test(t);
+  if (!hasWord) return "nothing that sounded like a plan";
+  return "sounded like a plan, but no day I could read";
 }
 let SCANLOG = { at: null, accounts: [], items: [] };
 
@@ -1203,10 +1236,15 @@ async function scanGmail() {
           who: (H.from || "").replace(/<[^>]*>/, "").replace(/"/g, "").trim() || null,
           why: "From email: " + (d.snippet || "").slice(0, 170)
         };
-        if (S.settings.autoAccept !== false && hit.kind === "meeting") {
-          let verdict = null;
-          try { verdict = await replyVerdict(msg.threadId, acct, Number(d.internalDate || 0)); }
-          catch (e) { console.warn("reply check", e); }
+        if (hit.kind === "meeting") {
+          let th = { verdict: null, when: null };
+          try { th = await readThread(msg.threadId, acct, Number(d.internalDate || 0), hit.when); }
+          catch (e) { console.warn("thread read", e); }
+          if (th.when) {                              // a reply nailed down the time
+            item.start = th.when.toISOString();
+            item.why = "Time taken from a later reply. " + item.why;
+          }
+          const verdict = S.settings.autoAccept === false ? null : th.verdict;
           if (verdict === "no") {                       // you turned it down — stop asking
             dropped[id] = 1; Store.set("omw_dismissed", dropped);
             SCANLOG.items.push({ subject: item.title, why: "you replied that you can't make it" });
@@ -1602,7 +1640,7 @@ function renderSettings() {
 
   <div class="eyebrow">This app</div>
   <div class="group">
-    ${row("clock", "Timing and sound", S.settings.bufferMin + " min of slack · homework at " + hhmm(S.settings.homeworkHour), `<div class="pill no">Edit</div>`, "openTiming()")}
+    ${row("clock", "Timing and sound", S.settings.bufferMin + " min of slack · " + humanGap(S.settings.blindLead || 60) + " when there's no place", `<div class="pill no">Edit</div>`, "openTiming()")}
     ${row("map", "Connection keys", hasWorker() ? "Worker connected — sign-ins are permanent" : (S.keys.googleClientId ? "Google key saved" : "Paste your Google and Maps keys"), pill(!!S.keys.googleClientId, "Saved", "Add"), "openKeys()")}
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
     ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
@@ -1657,6 +1695,7 @@ function openTiming() {
     <div class="group" style="margin-top:16px">
       ${row("clock", "Comfort padding", s.bufferMin + " min added to every trip", `<div class="pill no num">${s.bufferMin}m</div>`, "bumpBuffer(1)")}
       ${row("bell", "Homework nudge", "Announced at " + hhmm(s.homeworkHour) + " the day before", `<div class="pill no">${hhmm(s.homeworkHour)}</div>`, "bumpHw(1)")}
+      ${row("pin", "No known location", humanGap(s.blindLead || 60) + " of warning when there's no trip to measure", `<div class="pill no num">${humanGap(s.blindLead || 60)}</div>`, "bumpBlind(1)")}
       ${row("vol", "Button sounds", s.sounds ? "On" : "Off", sw(s.sounds), "tog('sounds',1)")}
     </div>
     <div class="note">Quiet hours run ${hhmm(s.quietStart)} to ${hhmm(s.quietEnd)}. An alert landing inside them moves to the edge — later if there's still time, earlier if the deadline is close.</div>
@@ -1686,6 +1725,7 @@ function tog(k, inSheet) {
 }
 function bumpBuffer(inSheet) { const o = [5, 10, 12, 15, 20, 25]; S.settings.bufferMin = o[(o.indexOf(S.settings.bufferMin) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
 function bumpHw(inSheet) { const o = [15, 16, 17, 18, 19, 20]; S.settings.homeworkHour = o[(o.indexOf(S.settings.homeworkHour) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
+function bumpBlind(inSheet) { const o = [30, 45, 60, 90, 120]; S.settings.blindLead = o[(o.indexOf(S.settings.blindLead || 60) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
 function saveKeys() { S.keys.googleClientId = $("k_g").value.trim(); S.keys.mapsKey = $("k_m").value.trim(); S.keys.workerUrl = ($("k_w") ? $("k_w").value.trim() : S.keys.workerUrl); save(); Sound.on(); closeSheet(); toast("Keys saved"); renderSettings(); }
 function wipe() { if (!confirm("Erase everything on this device?")) return; S = JSON.parse(JSON.stringify(DEFAULTS)); save(); Sound.off(); toast("Erased"); renderSettings(); renderHome(); }
 function testNotif() { const e = upcoming()[0]; if (!e) { toast("Nothing to announce yet"); return; } delete S.fired[e.id]; deliver(e); }
