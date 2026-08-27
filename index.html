@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FCF7F6">
 <title>On My Way</title>
 <link rel="manifest" href="./manifest.json">
@@ -34,7 +34,8 @@
   --r:20px;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.leaflet-container,#mapbox,#mapfull{touch-action:auto}
 html,body{margin:0;padding:0}
 body{
   background:var(--paper);
@@ -339,8 +340,10 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 #ver{
   position:fixed;right:9px;bottom:calc(7px + var(--safe-b));z-index:70;
   font-size:10px;font-weight:600;letter-spacing:.05em;color:#C6AEAB;
-  font-variant-numeric:tabular-nums;pointer-events:none;
+  font-variant-numeric:tabular-nums;padding:6px 8px;cursor:pointer;
+  -webkit-user-select:none;user-select:none;
 }
+#ver:active{color:var(--iris)}
 /* ---------- opening ---------- */
 #splash{
   position:fixed;inset:0;z-index:200;background:var(--paper);
@@ -411,7 +414,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.9.0";
+const VERSION = "1.9.3";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -587,6 +590,7 @@ const DEFAULTS = {
   accounts: [],             // addresses of every Google account you've paired
   vault: [],                // {email, blob} — sealed refresh tokens, only the worker can read them
   banned: {},               // things you deleted on purpose. never coming back.
+  seenVersion: null,        // last version whose notes you were shown
   teams: [],                // [{league,id,name}]
   events: [],               // unified event objects
   routines: [],             // [{id,title,time:"07:20",days:[1,2,3,4,5],place?}]
@@ -627,6 +631,26 @@ function humanGap(mins) {
    Everything else is a shell around these three functions.
    ============================================================ */
 
+/**
+ * Rush hour isn't one number. A trip at 8am and the same trip at 2pm are
+ * different journeys, so what gets learned is bucketed by when you travel.
+ * That gives traffic-aware timing from your own trips, with no traffic API.
+ */
+function timeBucket(when) {
+  const d = new Date(when || Date.now());
+  const day = (d.getDay() === 0 || d.getDay() === 6) ? "wknd" : "week";
+  const h = d.getHours();
+  const slot = h < 7 ? "early" : h < 10 ? "morning" : h < 15 ? "midday" : h < 19 ? "evening" : "night";
+  return day + "-" + slot;
+}
+const BUCKETNAME = {
+  "week-early": "early on a weekday", "week-morning": "the weekday morning rush",
+  "week-midday": "the middle of a weekday", "week-evening": "the weekday evening rush",
+  "week-night": "a weekday night", "wknd-early": "early at the weekend",
+  "wknd-morning": "a weekend morning", "wknd-midday": "the middle of a weekend day",
+  "wknd-evening": "a weekend evening", "wknd-night": "a weekend night"
+};
+
 /** Distance in km between two {lat,lng}. */
 function haversine(a, b) {
   const R = 6371, r = x => x * Math.PI / 180;
@@ -641,7 +665,7 @@ function haversine(a, b) {
  * otherwise a road-factored straight-line estimate.
  * Then applies what we've LEARNED about this person on this route.
  */
-async function travelMinutes(origin, dest, destKey) {
+async function travelMinutes(origin, dest, destKey, when) {
   let base = null;
   if (!S.paired.maps) {                        // OSRM: real roads, no key, no card
     try {
@@ -672,16 +696,24 @@ async function travelMinutes(origin, dest, destKey) {
     base = Math.max(5, Math.round(km / 38 * 60));
   }
   const L = S.routeLearning[destKey];
-  if (L && L.n >= 2) base = Math.round(base * L.ratio);
-  return base;
+  if (L) {
+    const b = L.buckets && L.buckets[timeBucket(when)];
+    if (b && b.n >= 2) base = Math.round(base * b.ratio);          // this time of day
+    else if (L.all && L.all.n >= 2) base = Math.round(base * L.all.ratio);
+    else if (L.n >= 2 && L.ratio) base = Math.round(base * L.ratio); // older saved shape
+  }
+  return Math.max(2, base);
 }
 
 /** After a real trip, record how wrong we were so next time is closer. */
-function learnRoute(destKey, estimated, actual) {
-  const L = S.routeLearning[destKey] || { ratio: 1, n: 0 };
+function learnRoute(destKey, estimated, actual, when) {
   const r = Math.min(2.5, Math.max(.5, actual / estimated));
-  L.ratio = (L.ratio * L.n + r) / (L.n + 1);
-  L.n = Math.min(12, L.n + 1);
+  let L = S.routeLearning[destKey];
+  if (!L || !L.buckets) L = { all: { ratio: (L && L.ratio) || 1, n: (L && L.n) || 0 }, buckets: {} };
+  const roll = (o) => ({ ratio: (o.ratio * o.n + r) / (o.n + 1), n: Math.min(12, o.n + 1) });
+  L.all = roll(L.all || { ratio: 1, n: 0 });
+  const b = timeBucket(when);
+  L.buckets[b] = roll(L.buckets[b] || { ratio: 1, n: 0 });
   S.routeLearning[destKey] = L; save();
 }
 
@@ -805,10 +837,10 @@ async function computeAlert(ev, origin) {
     if (g) { ev.place.lat = g.lat; ev.place.lng = g.lng; ev.place.rough = g.rough; ev.place.pinned = g.pinned; ev.place.label = g.label; }
   }
   if (ev.place && ev.place.lat && origin) {
-    travel = await travelMinutes(origin, { lat: ev.place.lat, lng: ev.place.lng }, ev.place.name || ev.title);
+    travel = await travelMinutes(origin, { lat: ev.place.lat, lng: ev.place.lng }, ev.place.name || ev.title, start);
     reason = travel + " min of travel plus " + S.settings.bufferMin + " min of slack" +
       (ev.place.rough ? ", from a rough guess at where that is" : "") +
-      (S.routeLearning[ev.place.name] && S.routeLearning[ev.place.name].n >= 2 ? ", adjusted to how long this trip really takes you" : "");
+      (learnedNote(ev.place.name, start) || "");
   } else if (ev.place && ev.place.name) {
     reason = "Couldn't place " + ev.place.name + " on a map, so a " + humanGap(S.settings.blindLead) + " head start";
   } else if (!origin) {
@@ -831,6 +863,15 @@ function notifTemplate(ev) {
   if (ev.room) s += " in room " + ev.room;
   if (ev.who) s += " with " + ev.who;
   return { title: ev.title, body: s + " in {gap}." };
+}
+
+function learnedNote(key, when) {
+  const L = S.routeLearning[key];
+  if (!L) return "";
+  const b = L.buckets && L.buckets[timeBucket(when)];
+  if (b && b.n >= 2) return ", adjusted for how long this takes you in " + (BUCKETNAME[timeBucket(when)] || "that part of the day");
+  if (L.all && L.all.n >= 2) return ", adjusted to how long this trip really takes you";
+  return "";
 }
 
 /** Exactly the format asked for. Blanks only appear when we actually know them. */
@@ -859,7 +900,7 @@ function checkArrival(pos) {
   if (Date.now() - TRIP.left > 4 * 60 * MIN) { TRIP = null; return; }
   if (haversine(pos, { lat: ev.place.lat, lng: ev.place.lng }) < 0.2) {
     const actual = Math.max(1, Math.round((Date.now() - TRIP.left) / MIN));
-    learnRoute(TRIP.key, TRIP.est, actual);
+    learnRoute(TRIP.key, TRIP.est, actual, TRIP.left);
     toast("That took " + actual + " min. Noted for next time.");
     TRIP = null;
   }
@@ -2329,6 +2370,7 @@ function renderSettings() {
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
     ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
     ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
+    ${row("bell", "What's new", "Everything that changed, version by version", `<div class="pill no">Read</div>`, "openChanges()")}
     ${row("google", "Add device", clientId() ? "One link that sets up your phone or laptop" : "Pair Google first, then this makes the link", `<div class="pill no">Link</div>`, "shareSetup()")}
     ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
   </div>
@@ -2367,15 +2409,66 @@ function openEmailScan() {
     <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
 }
 
+const CHANGES = [
+  ["1.9.3", ["These notes now appear on their own after an update"]],
+  ["1.9.2", ["Traffic now learns your routes by time of day, so weekday mornings get their own timing",
+             "Turn-by-turn directions under the map",
+             "Address search when you add something",
+             "Double-tapping no longer zooms the page",
+             "This page"]],
+  ["1.9.0", ["Maps stopped asking for a key it never needed — routes, addresses and the map itself are free"]],
+  ["1.8.0", ["Notifications arrive with the app closed",
+             "Alerts land on the exact moment, not whenever the check happens to run"]],
+  ["1.7.0", ["Add device: one link carries your setup to a phone or laptop"]],
+  ["1.6.0", ["Removing something now actually removes it — it used to come back on the next sync",
+             "Place names find real buildings instead of landing downtown",
+             "Drag any pin to correct where it thinks a place is"]],
+  ["1.5.0", ["Signed in for good instead of every hour",
+             "More than one Google account at a time"]],
+  ["1.4.0", ["Soft red throughout", "Fewer switches — things turn themselves on when you pair"]],
+  ["1.3.0", ["Buttons got their sound"]],
+  ["1.2.0", ["Screens slide instead of cutting"]],
+  ["1.1.0", ["Departure times use real distances", "Events spotted in your email"]],
+  ["1.0.0", ["First build"]]
+];
+/**
+ * Oldest at the top, newest at the bottom, and it opens scrolled to the end —
+ * so what just changed is right there, and the history is a scroll up.
+ */
+function openChanges(fresh) {
+  Sound.open();
+  const newest = CHANGES[0][0];
+  const rows = CHANGES.slice().reverse().map(([v, items]) => {
+    const isNew = v === newest;
+    return `<div class="eyebrow"${isNew ? ' style="color:var(--iris)"' : ""}>${v}${isNew ? " · just installed" : ""}</div>
+      <div class="group"${isNew ? ' style="border-color:var(--iris)"' : ""}>${items.map(i => `<div class="row" style="padding:12px 15px">
+        <div class="row-txt"><div class="row-t" style="font-weight:500;font-size:14px">${esc(i)}</div></div></div>`).join("")}</div>`;
+  }).join("");
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>${fresh ? "Updated to v" + VERSION : "What's new"}</h2>
+    <div class="note" style="margin:6px 0 0">${fresh ? "Here's what changed. Scroll up for everything before it." : "Newest at the bottom. Scroll up for the history."}</div>
+    ${rows}
+    <button class="btn full" style="margin-top:16px" onclick="closeSheet()">${fresh ? "Got it" : "Close"}</button>
+    <div style="height:10px"></div>`);
+  const sh = document.querySelector(".sheet");
+  if (sh) setTimeout(() => { sh.scrollTop = sh.scrollHeight; }, 40);
+}
+
 function openMapsInfo() {
   Sound.open();
   sheet(`<div class="eyebrow" style="margin-top:0">Paired apps</div><h2>Maps</h2>
     <div class="group" style="margin-top:16px">
       ${row("map", "OpenStreetMap", "Road routes and address lookup", pill(true, "On", ""), "")}
-      ${row("car", "Live traffic", S.paired.maps ? "Google Maps is connected" : "Needs a Google Maps key, which needs a card on file", pill(S.paired.maps, "On", "Off"), "")}
+      ${row("car", "Live traffic", S.paired.maps ? "Google Maps is connected" : (Object.keys(S.routeLearning).length ? "Learned from your own trips, by time of day" : "Will build itself from your trips"), pill(true, S.paired.maps ? "Google" : "Learning", ""), "")}
     </div>
     <div class="note">Everything the app needs from a map already works for free — real road routes, travel times, address lookup, and the map itself all come from OpenStreetMap. There's nothing to pair.</div>
-    <div class="note" style="margin-top:10px">A Google Maps key would add live traffic on top, but Google requires a credit card even on the free tier. The estimates without it are usually within a few minutes, and route learning closes most of the rest of the gap.</div>
+    <div class="note" style="margin-top:10px">Traffic is handled without paying anyone. Every trip you take gets timed against the estimate, and the correction is kept separately for weekday mornings, weekday evenings, weekends and so on. After two trips at a given time of day, your rush hour is built in — measured on the actual roads you use, which is something a generic traffic feed can't do.</div>
+    <div class="note" style="margin-top:10px">A Google Maps key would add live incident data on top, but Google wants a card on file even for the free tier.</div>
+    ${Object.keys(S.routeLearning).length ? `<div class="eyebrow">What it has learned</div><div class="group">${Object.keys(S.routeLearning).slice(0, 6).map(k => {
+      const L = S.routeLearning[k];
+      const bs = Object.keys(L.buckets || {});
+      const sum = bs.length ? bs.map(b => (BUCKETNAME[b] || b) + " ×" + L.buckets[b].ratio.toFixed(2)).join(" · ") : "not enough trips yet";
+      return `<div class="row"><div class="row-ico">${ICONS.car}</div><div class="row-txt"><div class="row-t">${esc(k)}</div><div class="row-s">${esc(sum)}</div></div></div>`;
+    }).join("")}</div>` : ""}
     ${S.paired.mapsKeyWanted || S.keys.mapsKey ? `<button class="btn full" style="margin-top:16px" onclick="closeSheet();openKeys()">Add a Maps key</button>` : ""}
     <button class="btn ghost full" style="margin-top:10px" onclick="closeSheet()">Done</button>`);
 }
@@ -2505,9 +2598,10 @@ async function loadDemo() {
 /* ---------- TUTORIAL ---------- */
 const TUT = [
   { art: ringArt(), t: "It decides when", p: "Every other app tells you a thing exists. This one works out the moment that thing becomes useful to know, and stays quiet until then." },
-  { art: leaveArt(), t: "Leave by, not starts at", p: "Pair your calendar and location and it subtracts the drive, the traffic and a few minutes of slack. The number you see is when to walk out the door." },
+  { art: leaveArt(), t: "Leave by, not starts at", p: "It measures the real road route to where you're going, adds a few minutes of slack, and shows you when to walk out the door." },
   { art: nightArt(), t: "No 3am homework alerts", p: "An assignment posted at 3am is still due tomorrow. You'll hear about it at six the evening before, when you can actually do something about it." },
-  { art: pairArt(), t: "Pair what you use", p: "Calendar, Gmail, Classroom, Maps, weather, sports. Everything stays on this device. Add and remove any of it whenever you want." }
+  { art: mailArt(), t: "It reads the plan out of your mail", p: "Someone suggests a time, you write back that it works, and it lands on your schedule on its own. Anything it isn't sure about waits for your yes." },
+  { art: pairArt(), t: "One thing to pair", p: "Connect Google and allow location. Maps, routes and traffic timing come free and switch themselves on. Add it to your home screen and alerts reach you with the app closed." }
 ];
 function ringArt() {
   return `<svg viewBox="0 0 160 160" width="160" height="160"><circle cx="80" cy="80" r="62" fill="none" stroke="var(--line)" stroke-width="11"/>
@@ -2537,6 +2631,18 @@ function nightArt() {
   <path d="M156 78l3 3 6-6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
   <path d="M62 40 Q110 18 150 56" stroke="var(--iris)" stroke-width="2" fill="none" stroke-dasharray="4 4"/>
   <path d="m146 50 5 7-8 2" fill="var(--iris)"/></svg>`;
+}
+function mailArt() {
+  return `<svg viewBox="0 0 220 140" width="220" height="140">
+  <rect x="16" y="26" width="120" height="52" rx="10" fill="var(--card)" stroke="var(--line)"/>
+  <path d="M22 34l54 32 54-32" fill="none" stroke="var(--line)" stroke-width="2"/>
+  <text x="30" y="98" font-family="Inter" font-weight="600" font-size="11" fill="var(--muted)">"Friday at 4?"</text>
+  <path d="M140 52h34" stroke="var(--iris)" stroke-width="2" stroke-dasharray="4 4"/>
+  <path d="m170 47 7 5-7 5" fill="var(--iris)"/>
+  <rect x="150" y="72" width="58" height="34" rx="9" fill="var(--iris-soft)" stroke="var(--iris)"/>
+  <text x="179" y="88" text-anchor="middle" font-family="Inter" font-weight="700" font-size="9" letter-spacing="1.2" fill="var(--iris)">LEAVE BY</text>
+  <text x="179" y="100" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="13" fill="var(--iris)">3:31</text>
+  <text x="76" y="24" text-anchor="middle" font-family="Inter" font-weight="600" font-size="10" fill="var(--muted)">your mail</text></svg>`;
 }
 function pairArt() {
   const c = ["var(--iris)", "var(--mint)", "var(--amber)", "var(--coral)"];
@@ -2598,6 +2704,18 @@ document.addEventListener("click", e => {
 ["pointerdown", "keydown"].forEach(ev =>
   document.addEventListener(ev, () => Sound.prime(), { once: true, passive: true }));
 $("ver").textContent = "v" + VERSION;
+/* three taps on the version number forces a fresh copy from GitHub */
+(function versionTap() {
+  const el = $("ver");
+  let n = 0, t = 0;
+  el.addEventListener("click", () => {
+    const now = Date.now();
+    n = (now - t < 1200) ? n + 1 : 1;
+    t = now;
+    if (n === 2) toast("Tap once more to force an update");
+    if (n >= 3) { n = 0; forceUpdate(); }
+  });
+})();
 
 let SWREG = null, BG = false, INSTALL = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (SCREEN === "set") renderSettings(); });
@@ -2623,12 +2741,13 @@ async function initSW() {
       if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
       if (!document.hidden && SWREG) SWREG.update().catch(() => {});
     });
+    SWREG.update().catch(() => {});
     SWREG.addEventListener("updatefound", () => {
       const w = SWREG.installing;
       if (!w) return;
       w.addEventListener("statechange", () => {
         if (w.state === "installed" && navigator.serviceWorker.controller) {
-          toast("New version ready — reopen the app to load it");
+          toast("New version ready — tap the version number to load it");
         }
       });
     });
@@ -2658,6 +2777,12 @@ function dropSplash() {
   renderHome();
   if (S.settings.weather) loadWeather();
   if (S.settings.sports) loadSports();
+  if (!S.seenVersion) { S.seenVersion = VERSION; save(); }        // first ever run, stay quiet
+  else if (S.seenVersion !== VERSION) {
+    S.seenVersion = VERSION; save();
+    setTimeout(() => openChanges(true), 2000);                     // let the opening finish first
+  }
+
   const hash = location.hash.match(/e=([^&]+)/);
   if (hash) setTimeout(() => openDetail(decodeURIComponent(hash[1])), 400);
   setInterval(tick, 20000);
