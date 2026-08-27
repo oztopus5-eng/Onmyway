@@ -69,6 +69,8 @@ h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;lett
 }
 .iconbtn:active{transform:scale(.93)}
 .iconbtn.on{background:var(--iris);color:#fff}
+.iconbtn .dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--iris);border:2px solid var(--card)}
+.iconbtn{position:relative}
 .iconbtn svg{width:20px;height:20px;stroke-width:1.9}
 
 .screen{padding:4px 16px 0;animation:rise .32s cubic-bezier(.2,.7,.3,1) both}
@@ -217,6 +219,34 @@ button.pill.no:active{transform:scale(.94)}
 /* quiet destructive */
 .pill.quiet{background:#F4ECEA;color:var(--muted);box-shadow:none;padding:6px 11px}
 .pill.quiet::before,.pill.quiet::after{display:none}
+/* ---------- what's new ---------- */
+.rel{margin:26px 0 0}
+.rel:first-of-type{margin-top:16px}
+.rel-v{
+  font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;
+  font-size:19px;letter-spacing:-.02em;color:var(--ink);
+}
+.rel-d{font-size:12px;color:#C6AEAB;margin:-1px 0 9px;letter-spacing:.01em}
+.rel-tag{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--iris);margin-bottom:9px}
+.rel-l{
+  font-size:14.5px;line-height:1.55;color:var(--muted);
+  padding:5px 0 5px 16px;position:relative;
+}
+.rel-l::before{
+  content:"";position:absolute;left:2px;top:14px;
+  width:5px;height:5px;border-radius:50%;background:var(--line);
+}
+.rel.now .rel-l{color:var(--ink)}
+.rel.now .rel-l::before{background:var(--iris)}
+/* taken away, rather than added */
+.rel-l.gone::before{
+  background:none;content:"–";
+  left:0;top:3px;width:auto;height:auto;
+  color:var(--coral);font:800 15px/1 "Bricolage Grotesque",Inter,sans-serif;
+}
+.rel.now .rel-l.gone::before{background:none;color:var(--coral)}
+.rel-hr{height:1px;background:var(--line);margin:24px 0 0;opacity:.7}
+
 .note{font-size:12.5px;color:var(--muted);line-height:1.5;padding:0 4px;margin-top:10px}
 .field{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);font:inherit;font-size:15px;margin-top:8px;color:var(--ink)}
 .field:focus{outline:2px solid var(--iris);outline-offset:1px;border-color:transparent}
@@ -392,6 +422,9 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
     </button>
     <div class="brand">On My <span>Way</span></div>
+    <button class="iconbtn" id="navNew" aria-label="What's new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M3 12h18" opacity="0"/><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg>
+    </button>
     <button class="iconbtn" id="navSet" aria-label="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
     </button>
@@ -414,7 +447,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.9.3";
+const VERSION = "1.10.5";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -591,6 +624,9 @@ const DEFAULTS = {
   vault: [],                // {email, blob} — sealed refresh tokens, only the worker can read them
   banned: {},               // things you deleted on purpose. never coming back.
   seenVersion: null,        // last version whose notes you were shown
+  installedAt: {},          // version -> when it first ran here
+  readVersion: null,        // newest notes you've actually opened
+  feeds: [],                // {id,name,url,kind} calendar feeds from school portals etc
   teams: [],                // [{league,id,name}]
   events: [],               // unified event objects
   routines: [],             // [{id,title,time:"07:20",days:[1,2,3,4,5],place?}]
@@ -602,7 +638,7 @@ let S = Object.assign({}, DEFAULTS, Store.get("omw", {}));
 S.settings = Object.assign({}, DEFAULTS.settings, S.settings || {});
 S.keys = Object.assign({}, DEFAULTS.keys, S.keys || {});
 S.paired = Object.assign({}, DEFAULTS.paired, S.paired || {});
-S.geo = S.geo || {}; S.suggestions = S.suggestions || []; S.vault = S.vault || []; S.banned = S.banned || {};
+S.geo = S.geo || {}; S.suggestions = S.suggestions || []; S.vault = S.vault || []; S.banned = S.banned || {}; S.feeds = S.feeds || [];
 const save = () => Store.set("omw", S);
 
 /* ---------- time helpers ---------- */
@@ -936,7 +972,7 @@ function deliver(ev) {
 function tick() {
   const t = Date.now();
   for (const ev of S.events) {
-    if (S.fired[ev.id] || !ev.alertAt) continue;
+    if (S.fired[ev.id] || !ev.alertAt || !alertsOn(ev)) continue;
     const at = new Date(ev.alertAt).getTime();
     if (at <= t && t - at < 30 * MIN) deliver(ev);
   }
@@ -1270,6 +1306,199 @@ function pushLocal(id, title, body) {
   } else toast(body);
 }
 
+/* ============================================================
+   CALENDAR FEEDS
+   Almost every school portal, team site and league publishes an .ics
+   link — Blackbaud, Canvas, Schoology, Outlook, TeamSnap. One paste and
+   it all lands here. A browser can't fetch someone else's calendar
+   directly, so the worker passes it through.
+   ============================================================ */
+function icsUnfold(t) { return t.replace(/\r\n/g, "\n").replace(/\n[ \t]/g, ""); }
+function icsDate(val, params) {
+  const v = String(val).trim();
+  let m = v.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return { at: new Date(+m[1], +m[2] - 1, +m[3], 9, 0, 0), allDay: true };
+  m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
+  if (!m) return null;
+  if (m[7] === "Z") return { at: new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])), allDay: false };
+  return { at: new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]), allDay: false };
+}
+const icsUnesc = s => String(s).replace(/\\n/gi, " ").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\").trim();
+
+const CATS = [
+  ["exam",     "Tests and exams",  /\b(test|exam|midterm|final|assessment|quiz)\b/i],
+  ["project",  "Projects",         /\b(project|essay|paper|presentation|lab report|portfolio|draft|dbq)\b/i],
+  ["homework", "Homework",         /\b(homework|hw|assignment|reading|problem set|pset|worksheet|due)\b/i],
+  ["schedule", "Class schedule",   /\b(period|block|class|lecture|advisory|homeroom|assembly|study hall)\b/i]
+];
+/** Work out what a feed item actually is, from what it's called. */
+function classify(title, isDue) {
+  for (const [key, , re] of CATS) if (re.test(title)) return key;
+  return isDue ? "homework" : "schedule";
+}
+const feedOf = e => S.feeds.find(f => f.id === e.feed);
+/** Should this one be allowed to interrupt you? */
+function alertsOn(e) {
+  if (e.src !== "feed") return true;
+  const f = feedOf(e);
+  if (!f || !f.notify) return true;
+  return f.notify[e.cat] !== false;
+}
+
+function parseICS(text, feed) {
+  const out = [];
+  const lines = icsUnfold(text).split("\n");
+  let cur = null;
+  for (const line of lines) {
+    if (line.indexOf("BEGIN:VEVENT") === 0) { cur = {}; continue; }
+    if (line.indexOf("END:VEVENT") === 0) {
+      if (cur && cur.start && cur.summary) {
+        const when = cur.start.at;
+        if (when && when.getTime() > Date.now() - 12 * 3600e3 && when.getTime() < Date.now() + 60 * 864e5) {
+          const isDue = feed.kind === "assignment" ||
+            /\b(due|assignment|homework|essay|quiz|test|exam|project|reading)\b/i.test(cur.summary);
+          const title = icsUnesc(cur.summary);
+          out.push({
+            id: "f" + feed.id + "_" + (cur.uid || (cur.summary + when.getTime())).replace(/[^\w]/g, "").slice(0, 40),
+            src: "feed", feed: feed.id, kind: isDue ? "assignment" : "meeting",
+            cat: classify(title, isDue),
+            title: title,
+            start: (isDue && cur.start.allDay ? new Date(when.getFullYear(), when.getMonth(), when.getDate(), 23, 59) : when).toISOString(),
+            course: feed.name,
+            place: cur.location ? { name: icsUnesc(cur.location) } : null,
+            why: cur.desc ? icsUnesc(cur.desc).slice(0, 220) : null
+          });
+        }
+      }
+      cur = null; continue;
+    }
+    if (!cur) continue;
+    const c = line.indexOf(":");
+    if (c < 0) continue;
+    const left = line.slice(0, c), val = line.slice(c + 1);
+    const key = left.split(";")[0].toUpperCase();
+    if (key === "DTSTART") cur.start = icsDate(val, left);
+    else if (key === "SUMMARY") cur.summary = val;
+    else if (key === "LOCATION") cur.location = val;
+    else if (key === "DESCRIPTION") cur.desc = val;
+    else if (key === "UID") cur.uid = val;
+  }
+  return out.slice(0, 120);
+}
+
+async function syncFeeds() {
+  if (!S.feeds.length) return;
+  const keep = S.events.filter(e => e.src !== "feed");
+  let found = [];
+  for (const f of S.feeds) {
+    try {
+      const url = hasWorker()
+        ? workerBase() + "/ics?url=" + encodeURIComponent(f.url)
+        : f.url;
+      const r = await fetch(url);
+      if (!r.ok) { f.error = "couldn't reach it"; continue; }
+      const text = await r.text();
+      if (text.indexOf("BEGIN:VCALENDAR") < 0) { f.error = "not a calendar feed"; continue; }
+      const items = parseICS(text, f);
+      f.error = null; f.count = items.length; f.last = Date.now();
+      found = found.concat(items);
+    } catch (e) { f.error = "couldn't reach it"; }
+  }
+  S.events = keep.concat(found.filter(e => !S.banned[e.id]));
+  save();
+  await rescheduleAll();
+}
+
+function feedSummary(f) {
+  if (f.error) return f.error;
+  const on = CATS.filter(([k]) => !f.notify || f.notify[k] !== false).map(([, n]) => n.toLowerCase());
+  if (!on.length) return (f.count || 0) + " items · nothing alerts you";
+  return (f.count != null ? f.count + " items · " : "") + "alerts for " + on.join(", ");
+}
+function openFeeds() {
+  Sound.open();
+  const rows = S.feeds.length ? S.feeds.map((f, i) => `<button class="row" onclick="openFeed(${i})">
+      <div class="row-ico">${ICONS.clock}</div>
+      <div class="row-txt"><div class="row-t">${esc(f.name)}</div>
+      <div class="row-s">${esc(feedSummary(f))}</div></div>
+      <div class="pill no">Edit</div></button>`).join("")
+    : `<div class="row"><div class="row-txt"><div class="row-s">Nothing connected yet.</div></div></div>`;
+  sheet(`<div class="eyebrow" style="margin-top:0">Paired apps</div><h2>Sites and apps</h2>
+    <div class="note" style="margin:6px 0 0">Almost every school portal, team site and league publishes a calendar link. Paste one and everything on it lands here with leave-by times.</div>
+    <div class="group" style="margin-top:14px">${rows}</div>
+    <label class="lbl">What is it</label>
+    <input class="field" id="fd_n" placeholder="Blackbaud, Canvas, team schedule">
+    <label class="lbl">Calendar link</label>
+    <input class="field" id="fd_u" placeholder="https://… .ics  or  webcal://…" autocapitalize="off" autocorrect="off">
+    <label class="lbl">Treat these as</label>
+    <select class="field" id="fd_k">
+      <option value="auto">Work it out from the title</option>
+      <option value="assignment">Assignments and due dates</option>
+      <option value="meeting">Classes and events</option>
+    </select>
+    <button class="btn full" style="margin-top:18px" onclick="addFeed()">Connect it</button>
+    <div class="note" style="margin-top:16px"><b style="font-weight:700;color:var(--ink)">Finding the link</b><br>
+      <b style="font-weight:600;color:var(--ink)">Blackbaud</b> — Calendar, then the subscribe or feed icon, and copy the address it gives you.<br>
+      <b style="font-weight:600;color:var(--ink)">Canvas</b> — Calendar, then Calendar Feed at the bottom right.<br>
+      <b style="font-weight:600;color:var(--ink)">Schoology</b> — Settings, then iCal feed.<br>
+      <b style="font-weight:600;color:var(--ink)">Google or Outlook</b> — calendar settings, then the secret address in iCal format.</div>
+    <div class="note" style="margin-top:10px">Treat that link like a password — anyone who has it can read that calendar. It's stored on this device and only ever sent to your own worker.</div>
+    <div style="height:14px"></div>`);
+}
+/** One feed's worth of switches: what it's allowed to interrupt you about. */
+function openFeed(i) {
+  const f = S.feeds[i]; if (!f) return;
+  Sound.open();
+  if (!f.notify) f.notify = { exam: true, project: true, homework: true, schedule: false };
+  const counts = {};
+  S.events.filter(e => e.feed === f.id).forEach(e => counts[e.cat] = (counts[e.cat] || 0) + 1);
+  sheet(`<div class="eyebrow" style="margin-top:0">Sites and apps</div><h2>${esc(f.name)}</h2>
+    <div class="note" style="margin:6px 0 0">Everything from here shows up on your schedule either way. These decide what's allowed to notify you.</div>
+    <div class="group" style="margin-top:14px">
+      ${CATS.map(([k, name]) => row(k === "schedule" ? "clock" : k === "exam" ? "bell" : "loop", name,
+        (counts[k] ? counts[k] + " coming up" : "none right now"),
+        sw(f.notify[k] !== false), `togFeed(${i},'${k}')`)).join("")}
+    </div>
+    <div class="note">Class schedule starts off, because a reminder before every period all day is usually noise. Turn it on if you want leave-by times for first period.</div>
+    <div class="group" style="margin-top:14px">
+      ${row("clock", "Checked", f.last ? fmtTime(f.last) + " · " + (f.count || 0) + " items" : "not yet", `<div class="pill no">Refresh</div>`, `refreshFeed(${i})`)}
+      ${row("car", "Disconnect", "Removes it and everything from it", `<div class="pill no" style="background:var(--coral-soft);color:var(--coral);box-shadow:none">Remove</div>`, `dropFeed(${i})`)}
+    </div>
+    <button class="btn full" style="margin-top:16px" onclick="closeSheet()">Done</button>`);
+}
+function togFeed(i, key) {
+  const f = S.feeds[i]; if (!f) return;
+  if (!f.notify) f.notify = { exam: true, project: true, homework: true, schedule: false };
+  f.notify[key] = f.notify[key] === false;
+  save(); f.notify[key] ? Sound.on() : Sound.off();
+  queueToIDB(); openFeed(i); renderSettings();
+}
+async function refreshFeed(i) {
+  toast("Checking…"); Sound.tap();
+  await syncFeeds(); renderHome(); renderSettings(); openFeed(i);
+}
+
+async function addFeed() {
+  const n = $("fd_n").value.trim(), u = $("fd_u").value.trim();
+  if (!n || !u) { toast("Give it a name and a link"); return; }
+  if (!/^(https?|webcal):\/\//i.test(u)) { toast("That doesn't look like a calendar link"); return; }
+  S.feeds.push({
+    id: String(Date.now()).slice(-8), name: n,
+    url: u.replace(/^webcal:/i, "https:"), kind: $("fd_k").value,
+    notify: { exam: true, project: true, homework: true, schedule: false }
+  });
+  save(); Sound.on(); closeSheet(); toast("Checking " + n + "…");
+  await syncFeeds();
+  renderHome(); renderSettings(); openFeeds();
+}
+function dropFeed(i) {
+  const f = S.feeds[i]; if (!f) return;
+  S.feeds.splice(i, 1);
+  S.events = S.events.filter(e => e.feed !== f.id);
+  save(); Sound.off();
+  rescheduleAll().then(() => { renderHome(); renderSettings(); openFeeds(); });
+}
+
 /* ---------- weather (Open-Meteo, no key needed) ---------- */
 let WEATHER = null;
 async function loadWeather() {
@@ -1473,6 +1702,42 @@ function parseWhy(text) {
 }
 let SCANLOG = { at: null, accounts: [], items: [] };
 
+/** Gmail hands the body back base64url, sometimes several layers deep. */
+function b64mail(s) {
+  try {
+    const b = atob(String(s).replace(/-/g, "+").replace(/_/g, "/"));
+    return decodeURIComponent(escape(b));
+  } catch (e) {
+    try { return atob(String(s).replace(/-/g, "+").replace(/_/g, "/")); } catch (x) { return ""; }
+  }
+}
+/** Everything the message actually says — plain text if it has any, otherwise the HTML stripped down. */
+function mailBody(msg) {
+  let plain = "", html = "";
+  (function walk(p) {
+    if (!p) return;
+    if (p.body && p.body.data) {
+      if (p.mimeType === "text/plain") plain += b64mail(p.body.data) + "\n";
+      else if (p.mimeType === "text/html") html += b64mail(p.body.data) + "\n";
+    }
+    (p.parts || []).forEach(walk);
+  })(msg.payload);
+  let out = plain.trim();
+  if (!out && html) {
+    out = html
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  }
+  return out.replace(/^[>|].*$/gm, "")            // drop quoted replies
+    .replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ")
+    .trim().slice(0, 4000);
+}
+
 async function scanGmail() {
   if (!anyToken() || S.settings.emailScan === false) return;
   const dropped = Store.get("omw_dismissed", {});
@@ -1490,10 +1755,10 @@ async function scanGmail() {
         let d;
         try {
           d = await gfetchA("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + msg.id +
-            "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date", acct);
+            "?format=full", acct);
         } catch (e) { console.warn("message", e); continue; }
         const H = {}; (d.payload && d.payload.headers || []).forEach(x => H[x.name.toLowerCase()] = x.value);
-        const blob = (H.subject || "") + ". " + (d.snippet || "");
+        const blob = (H.subject || "") + ". " + (mailBody(d) || d.snippet || "");
         const hit = parseWhen(blob, H.date);
         if (!hit) { SCANLOG.items.push({ subject: H.subject || "(no subject)", why: parseWhy(blob) }); continue; }
         const item = {
@@ -1626,7 +1891,7 @@ function pushSync() {
         // remaining seconds itself, so the alert lands on the exact moment
         // instead of up to a minute late.
         const times = upcoming()
-          .filter(e => e.alertAt && !S.fired[e.id])
+          .filter(e => e.alertAt && !S.fired[e.id] && alertsOn(e))
           .map(e => Math.floor(new Date(e.alertAt).getTime() / 60000) * 60000)
           .filter(t => t > Date.now() - 60000)
           .sort((a, b) => a - b).slice(0, 60);
@@ -1655,7 +1920,7 @@ async function testPush() {
 
 function queueToIDB() {
   try {
-    const items = upcoming().filter(e => e.alertAt && !S.fired[e.id]).slice(0, 40).map(e => {
+    const items = upcoming().filter(e => e.alertAt && !S.fired[e.id] && alertsOn(e)).slice(0, 40).map(e => {
       const t = notifTemplate(e);
       return {
         id: e.id, title: t.title, body: t.body,
@@ -1826,7 +2091,7 @@ function renderHome() {
         <button class="card" onclick="openDetail('${e.id}')">
           <div class="card-t">${esc(e.title)}</div>
           <div class="card-s">${e.place && e.place.name ? esc(e.place.name) : (e.course ? esc(e.course) : (e.who ? "with " + esc(e.who) : "No location"))}</div>
-          <span class="tag t-${e.kind}">${e.kind}</span>${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}
+          <span class="tag t-${e.kind}">${e.kind}</span>${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}${!alertsOn(e) ? `<span class="tag t-game" style="margin-left:6px">silent</span>` : ""}
         </button></div>`;
     });
     h += `</div>`;
@@ -2352,15 +2617,12 @@ function renderSettings() {
     ${row("google", "Google", ACCOUNTS.length ? (ACCOUNTS.length === 1 ? esc(ACCOUNTS[0].email) : ACCOUNTS.length + " accounts syncing") : (S.accounts && S.accounts.length ? "Signed out — tap to reconnect " + esc(S.accounts[0]) : "Calendar, Classroom, Gmail"), pill(ACCOUNTS.length > 0, ACCOUNTS.length > 1 ? String(ACCOUNTS.length) : "Paired", "Pair"), ACCOUNTS.length ? "openAccounts()" : "pairGoogle()")}
     ${row("pin", "Location", p.location ? "Sharing while the app is open" : "Needed to time your departures", pill(p.location, "On", "Allow"), "pairLocation()")}
     ${row("bell", "Notifications", !p.notifications ? "Nothing can reach you until this is on" : (PUSHOK ? "Arriving even when the app is closed" : (hasWorker() ? "Add to your home screen to get them in the background" : "Only while the app is open")), pill(p.notifications && PUSHOK, "On", p.notifications ? "Finish" : "Allow"), "notifRow()")}
+    ${row("clock", "Sites and apps", S.feeds.length ? S.feeds.map(f => f.name).join(", ") : "Blackbaud, Canvas, team schedules — one link each", pill(S.feeds.length > 0, String(S.feeds.length), "Add"), "openFeeds()")}
     ${row("map", "Maps", p.maps ? "Google Maps — live traffic" : "OpenStreetMap — routes and addresses, no key needed", pill(true, p.maps ? "Google" : "On", ""), "openMapsInfo()")}
   </div>
   ${SANDBOXED ? `<div class="note" style="background:var(--amber-soft);color:var(--amber);border-radius:14px;padding:12px 14px;margin-bottom:10px">Running in a preview. Pairing buttons will play their animation but won't connect to anything — that needs the app on its own web address.</div>` : ""}
   <div class="note">Everything paired stays in this browser. Nothing is uploaded, because there is no server to upload it to.</div>
 
-  <div class="eyebrow">Additions</div>
-  <div class="group">
-    ${rowCfg("loop", "Daily reminders", S.routines.length ? S.routines.length + " set up, tap to edit" : "Tap to add a repeating nudge", s.routines, "tog('routines')", "editRoutines()")}
-  </div>
   <div class="note">Reading your mail and learning your routes switch themselves on when you pair Google and allow location. Nothing extra to flip.</div>
 
   <div class="eyebrow">This app</div>
@@ -2370,7 +2632,6 @@ function renderSettings() {
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
     ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
     ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
-    ${row("bell", "What's new", "Everything that changed, version by version", `<div class="pill no">Read</div>`, "openChanges()")}
     ${row("google", "Add device", clientId() ? "One link that sets up your phone or laptop" : "Pair Google first, then this makes the link", `<div class="pill no">Link</div>`, "shareSetup()")}
     ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
   </div>
@@ -2410,44 +2671,71 @@ function openEmailScan() {
 }
 
 const CHANGES = [
-  ["1.9.3", ["These notes now appear on their own after an update"]],
-  ["1.9.2", ["Traffic now learns your routes by time of day, so weekday mornings get their own timing",
-             "Turn-by-turn directions under the map",
-             "Address search when you add something",
-             "Double-tapping no longer zooms the page",
-             "This page"]],
-  ["1.9.0", ["Maps stopped asking for a key it never needed — routes, addresses and the map itself are free"]],
-  ["1.8.0", ["Notifications arrive with the app closed",
-             "Alerts land on the exact moment, not whenever the check happens to run"]],
-  ["1.7.0", ["Add device: one link carries your setup to a phone or laptop"]],
-  ["1.6.0", ["Removing something now actually removes it — it used to come back on the next sync",
-             "Place names find real buildings instead of landing downtown",
-             "Drag any pin to correct where it thinks a place is"]],
-  ["1.5.0", ["Signed in for good instead of every hour",
-             "More than one Google account at a time"]],
-  ["1.4.0", ["Soft red throughout", "Fewer switches — things turn themselves on when you pair"]],
-  ["1.3.0", ["Buttons got their sound"]],
-  ["1.2.0", ["Screens slide instead of cutting"]],
-  ["1.1.0", ["Departure times use real distances", "Events spotted in your email"]],
-  ["1.0.0", ["First build"]]
+  ["1.10.5", "26 Aug 2026", ["What's new has its own button in the top bar, with a dot when there's something unread"]],
+  ["1.10.4", "26 Aug 2026", ["Release dates on these notes"]],
+  ["1.10.3", "26 Aug 2026", ["Anything taken away in an update now shows a red minus instead of a dot"]],
+  ["1.10.2", "26 Aug 2026", ["These notes read like notes now, instead of a list of boxes"]],
+  ["1.10.1", "26 Aug 2026", ["Choose what each connected site is allowed to notify you about — homework, projects, exams or the class schedule"]],
+  ["1.10.0", "26 Aug 2026", ["Connect Blackbaud, Canvas, team schedules — anything with a calendar link",
+                             "Email scanning reads the whole message now, not just the preview",
+                             "Removed daily reminders"]],
+  ["1.9.3",  "26 Aug 2026", ["These notes now appear on their own after an update"]],
+  ["1.9.2",  "26 Aug 2026", ["Traffic now learns your routes by time of day, so weekday mornings get their own timing",
+                             "Turn-by-turn directions under the map",
+                             "Address search when you add something",
+                             "Double-tapping no longer zooms the page"]],
+  ["1.9.0",  "26 Aug 2026", ["Maps stopped asking for a key it never needed — routes, addresses and the map itself are free"]],
+  ["1.8.0",  "26 Aug 2026", ["Notifications arrive with the app closed",
+                             "Alerts land on the exact moment, not whenever the check happens to run"]],
+  ["1.7.0",  "26 Aug 2026", ["Add device: one link carries your setup to a phone or laptop",
+                             "Removed preview animations and force update"]],
+  ["1.6.0",  "20 Aug 2026", ["Removing something now actually removes it — it used to come back on the next sync",
+                             "Place names find real buildings instead of landing downtown",
+                             "Drag any pin to correct where it thinks a place is"]],
+  ["1.5.0",  "20 Aug 2026", ["Signed in for good instead of every hour",
+                             "More than one Google account at a time"]],
+  ["1.4.0",  "20 Aug 2026", ["Soft red throughout", "Fewer switches — things turn themselves on when you pair",
+                             "Removed weather and sports"]],
+  ["1.3.0",  "20 Aug 2026", ["Buttons got their sound"]],
+  ["1.2.0",  "20 Aug 2026", ["Screens slide instead of cutting"]],
+  ["1.1.0",  "20 Aug 2026", ["Departure times use real distances", "Events spotted in your email"]],
+  ["1.0.0",  "20 Aug 2026", ["First build"]]
 ];
-/**
- * Oldest at the top, newest at the bottom, and it opens scrolled to the end —
- * so what just changed is right there, and the history is a scroll up.
- */
+let NEWDOT = false;
+function markNewSeen() {
+  S.readVersion = VERSION; save();
+  const b = $("navNew");
+  if (b) { const d = b.querySelector(".dot"); if (d) d.remove(); }
+}
+function showNewDot() {
+  const b = $("navNew");
+  if (!b || b.querySelector(".dot")) return;
+  const s = document.createElement("span");
+  s.className = "dot";
+  b.appendChild(s);
+}
+
 function openChanges(fresh) {
   Sound.open();
   const newest = CHANGES[0][0];
-  const rows = CHANGES.slice().reverse().map(([v, items]) => {
+  const rows = CHANGES.slice().reverse().map(([v, date, items], idx) => {
     const isNew = v === newest;
-    return `<div class="eyebrow"${isNew ? ' style="color:var(--iris)"' : ""}>${v}${isNew ? " · just installed" : ""}</div>
-      <div class="group"${isNew ? ' style="border-color:var(--iris)"' : ""}>${items.map(i => `<div class="row" style="padding:12px 15px">
-        <div class="row-txt"><div class="row-t" style="font-weight:500;font-size:14px">${esc(i)}</div></div></div>`).join("")}</div>`;
+    const got = S.installedAt && S.installedAt[v];
+    return `${idx ? '<div class="rel-hr"></div>' : ""}
+      <div class="rel${isNew ? " now" : ""}">
+        ${isNew ? '<div class="rel-tag">Just installed</div>' : ""}
+        <div class="rel-v">Version ${v}</div>
+        <div class="rel-d">${esc(date)}${got ? " · you got it " + fmtDay(got).toLowerCase() + " at " + fmtTime(got) : ""}</div>
+        ${items.map(i => {
+          const removed = /^(removed|got rid of|gone)\b/i.test(i) || / removed$/i.test(i);
+          return `<div class="rel-l${removed ? " gone" : ""}">${esc(i)}</div>`;
+        }).join("")}
+      </div>`;
   }).join("");
   sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>${fresh ? "Updated to v" + VERSION : "What's new"}</h2>
-    <div class="note" style="margin:6px 0 0">${fresh ? "Here's what changed. Scroll up for everything before it." : "Newest at the bottom. Scroll up for the history."}</div>
+    <div class="note" style="margin:6px 0 18px">${fresh ? "Here's what changed. Scroll up for everything before it." : "Newest at the bottom. Scroll up for the history."}</div>
     ${rows}
-    <button class="btn full" style="margin-top:16px" onclick="closeSheet()">${fresh ? "Got it" : "Close"}</button>
+    <button class="btn full" style="margin-top:28px" onclick="closeSheet()">${fresh ? "Got it" : "Close"}</button>
     <div style="height:10px"></div>`);
   const sh = document.querySelector(".sheet");
   if (sh) setTimeout(() => { sh.scrollTop = sh.scrollHeight; }, 40);
@@ -2695,6 +2983,7 @@ function tutStep(n) {
 /* ---------- boot ---------- */
 $("navCal").onclick = () => go(SCREEN === "cal" ? "home" : "cal");
 $("navSet").onclick = () => go(SCREEN === "set" ? "home" : "set");
+$("navNew").onclick = () => { NEWDOT = false; markNewSeen(); openChanges(); };
 document.addEventListener("scroll", () => $("topbar").classList.toggle("scrolled", window.scrollY > 6), { passive: true });
 // bubbles, so a handler's own sound wins and this stays quiet
 document.addEventListener("click", e => {
@@ -2777,16 +3066,22 @@ function dropSplash() {
   renderHome();
   if (S.settings.weather) loadWeather();
   if (S.settings.sports) loadSports();
-  if (!S.seenVersion) { S.seenVersion = VERSION; save(); }        // first ever run, stay quiet
+  if (!S.installedAt) S.installedAt = {};
+  if (!S.installedAt[VERSION]) { S.installedAt[VERSION] = Date.now(); save(); }
+  if (S.readVersion !== VERSION && S.seenVersion === VERSION) showNewDot();
+  if (!S.seenVersion) { S.seenVersion = VERSION; S.readVersion = VERSION; save(); }   // first ever run, stay quiet
   else if (S.seenVersion !== VERSION) {
     S.seenVersion = VERSION; save();
-    setTimeout(() => openChanges(true), 2000);                     // let the opening finish first
+    NEWDOT = true; showNewDot();
+    setTimeout(() => { markNewSeen(); openChanges(true); }, 2000);  // let the opening finish first
   }
 
   const hash = location.hash.match(/e=([^&]+)/);
   if (hash) setTimeout(() => openDetail(decodeURIComponent(hash[1])), 400);
   setInterval(tick, 20000);
   setInterval(() => { if (S.settings.sports) loadSports(); if (S.settings.weather) loadWeather(); }, 10 * 60000);
+  syncFeeds().then(renderHome);
+  setInterval(() => syncFeeds().then(renderHome), 20 * 60000);
   setInterval(() => { if (anyToken()) syncGoogle().then(renderHome); }, 4 * 60000);
   setInterval(() => { if (anyToken() || S.vault.length) refreshAll(); }, 40 * 60000);   // ahead of the 1h expiry
   setInterval(() => pollGmail(), 30000);                  // 1 unit per account
