@@ -323,9 +323,10 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 .pf-label b{display:block;font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.02em;margin-bottom:4px}
 
 /* ---------- map ---------- */
-#mapbox{height:190px;border-radius:16px;overflow:hidden;margin-top:14px;border:1px solid var(--line);background:var(--line)}
+#mapbox{height:200px;border-radius:16px;overflow:hidden;margin-top:14px;border:1px solid var(--line);background:var(--line)}
 .leaflet-container{font:inherit;background:var(--paper)}
 .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.75)}
+#mapfull{height:66vh;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--line);margin-top:12px}
 .pinhint{font-size:12px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.4}
 
 /* ---------- toast + version ---------- */
@@ -410,7 +411,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.7.2";
+const VERSION = "1.8.1";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -821,6 +822,17 @@ async function computeAlert(ev, origin) {
   return { at: new Date(start.getTime() - lead * MIN), travel, reason };
 }
 
+/** Same wording, but with the countdown left blank for later. */
+function notifTemplate(ev) {
+  if (ev.kind === "assignment")
+    return { title: ev.title, body: "Due " + fmtDay(ev.start).toLowerCase() + " at " + fmtTime(ev.start) + (ev.course ? " · " + ev.course : "") };
+  const kind = ev.kind === "routine" ? "reminder" : "meeting";
+  let s = "You have a " + kind + " at " + (ev.place && ev.place.name ? ev.place.name : fmtTime(ev.start));
+  if (ev.room) s += " in room " + ev.room;
+  if (ev.who) s += " with " + ev.who;
+  return { title: ev.title, body: s + " in {gap}." };
+}
+
 /** Exactly the format asked for. Blanks only appear when we actually know them. */
 function notifText(ev) {
   const mins = relMin(ev.start);
@@ -996,7 +1008,7 @@ async function catchWorkerReturn() {
   history.replaceState(null, "", location.pathname + location.search);
   S.vault = S.vault.filter(v => v.email !== email).concat([{ email, blob }]);
   S.accounts = S.vault.map(v => v.email);
-  S.paired.google = true; save();
+  S.paired.google = true; S.settings.emailScan = true; save();
   showPairing("google", "Finishing up…");
   const ok = await tokenFromWorker({ email, blob });
   endPairing(ok, ok ? esc(email) : "Signed in, but the worker didn't answer");
@@ -1028,7 +1040,7 @@ function pairGoogle(addAnother) {
       if (existing >= 0) ACCOUNTS[existing].token = token;
       else ACCOUNTS.push({ email, token });
       S.accounts = ACCOUNTS.map(a => a.email);
-      S.paired.google = true; save();
+      S.paired.google = true; S.settings.emailScan = true; save();
       endPairing(true, esc(email));
       await syncGoogle();
       renderSettings(); renderHome();
@@ -1177,7 +1189,7 @@ async function pairLocation() {
   navigator.geolocation.getCurrentPosition(p => {
     ORIGIN = { lat: p.coords.latitude, lng: p.coords.longitude };
     if (!S.home) S.home = ORIGIN;
-    S.paired.location = true; save();
+    S.paired.location = true; S.settings.traffic = true; save();
     endPairing(true, "Departures are timed from where you are");
     rescheduleAll().then(() => { renderSettings(); renderHome(); if (S.settings.weather) loadWeather(); });
     navigator.geolocation.watchPosition(q => { ORIGIN = { lat: q.coords.latitude, lng: q.coords.longitude }; checkArrival(ORIGIN); },
@@ -1191,7 +1203,8 @@ async function pairNotifications() {
   showPairing("notifications", "Waiting on permission…");
   const p = await Notification.requestPermission();
   S.paired.notifications = p === "granted"; save();
-  endPairing(p === "granted", p === "granted" ? "You'll be told when to leave" : "Notifications were blocked");
+  if (p === "granted") await enablePush();
+  endPairing(p === "granted", p === "granted" ? (PUSHOK ? "Alerts arrive even when this is closed" : "You'll be told when to leave") : "Notifications were blocked");
   renderSettings();
 }
 
@@ -1533,13 +1546,85 @@ const IDB = (() => {
     }
   };
 })();
+/* ---------- push: the worker pokes us when something is due ---------- */
+let PUSHSUB = null, PUSHOK = false;
+const u8 = s => {
+  const p = "=".repeat((4 - s.length % 4) % 4);
+  const b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+};
+
+async function enablePush() {
+  if (!SWREG || !hasWorker()) return false;
+  if (!("PushManager" in window)) return false;
+  try {
+    if (Notification.permission !== "granted") return false;
+    let sub = await SWREG.pushManager.getSubscription();
+    if (!sub) {
+      const r = await fetch(workerBase() + "/pubkey");
+      const { key } = await r.json();
+      if (!key) return false;
+      sub = await SWREG.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: u8(key) });
+    }
+    PUSHSUB = sub; PUSHOK = true;
+    await pushSync();
+    return true;
+  } catch (e) { console.warn("push", e); return false; }
+}
+
+/** Send the worker nothing but a list of timestamps. */
+let pushTimer = null;
+function pushSync() {
+  if (!PUSHSUB || !hasWorker()) return Promise.resolve();
+  clearTimeout(pushTimer);
+  return new Promise(res => {
+    pushTimer = setTimeout(async () => {
+      try {
+        // cron only runs on the minute, so ask to be woken at the minute
+        // boundary before each alert. The service worker then waits out the
+        // remaining seconds itself, so the alert lands on the exact moment
+        // instead of up to a minute late.
+        const times = upcoming()
+          .filter(e => e.alertAt && !S.fired[e.id])
+          .map(e => Math.floor(new Date(e.alertAt).getTime() / 60000) * 60000)
+          .filter(t => t > Date.now() - 60000)
+          .sort((a, b) => a - b).slice(0, 60);
+        await fetch(workerBase() + "/subscribe", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sub: PUSHSUB.toJSON(), times })
+        });
+      } catch (e) {}
+      res();
+    }, 900);
+  });
+}
+
+async function testPush() {
+  if (!PUSHSUB) { toast("Background alerts aren't on yet"); return; }
+  toast("Asking the worker to poke this device…");
+  try {
+    const r = await fetch(workerBase() + "/testpush", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ endpoint: PUSHSUB.endpoint })
+    });
+    const d = await r.json();
+    toast(d.ok ? "Sent — close the app and it should arrive" : "Worker said: " + (d.error || d.status));
+  } catch (e) { toast("Couldn't reach the worker"); }
+}
+
 function queueToIDB() {
   try {
     const items = upcoming().filter(e => e.alertAt && !S.fired[e.id]).slice(0, 40).map(e => {
-      const t = notifText(e);
-      return { id: e.id, title: t.title, body: t.body, at: new Date(e.alertAt).getTime(), urgent: e.kind !== "assignment" };
+      const t = notifTemplate(e);
+      return {
+        id: e.id, title: t.title, body: t.body,
+        at: new Date(e.alertAt).getTime(),
+        start: new Date(e.start).getTime(),
+        urgent: e.kind !== "assignment"
+      };
     });
     IDB.sync(items);
+    pushSync();
   } catch (e) {}
 }
 
@@ -1664,9 +1749,9 @@ function renderHome() {
   }
 
   const chips = [];
-  if (S.settings.weather && WEATHER)
+  if (false && S.settings.weather && WEATHER)
     chips.push(`<div class="chip"><div class="chip-k">Right now</div><div class="chip-v num">${WEATHER.now}°</div><div class="chip-s">${WCODE(WEATHER.code)} · ${WEATHER.hi}°/${WEATHER.lo}°${WEATHER.rain > 25 ? " · " + WEATHER.rain + "% rain" : ""}</div></div>`);
-  if (S.settings.sports) SPORTS.slice(0, 4).forEach(g =>
+  if (false) SPORTS.slice(0, 4).forEach(g =>
     chips.push(`<div class="chip"><div class="chip-k">${g.state === "in" ? "Live" : g.state === "post" ? "Final" : "Upcoming"}</div><div class="chip-v" style="font-size:15px">${esc(g.score || g.name)}</div><div class="chip-s">${esc(g.detail)}</div></div>`));
   if (chips.length) h += `<div class="eyebrow">Around you</div><div class="strip">${chips.join("")}</div>`;
 
@@ -1682,6 +1767,10 @@ function renderHome() {
           <button class="btn ghost" style="flex:1;padding:10px;font-size:14px" onclick="dismissSuggestion('${s.id}')">Not an event</button>
         </div></div>`;
     });
+  }
+
+  if (list.filter(e => e.place && e.place.lat).length) {
+    h += `<button class="btn ghost full" style="margin-top:11px" onclick="openMapAll()">See everything on a map</button>`;
   }
 
   const rest = list.slice(1, 12);
@@ -1964,6 +2053,54 @@ async function drawMap(ev) {
   setTimeout(() => { try { MAP.invalidateSize(); } catch (e) {} }, 120);
 }
 
+/** Every upcoming thing with a location, on one map. */
+async function openMapAll() {
+  const list = upcoming().filter(e => e.place && e.place.lat);
+  Sound.open();
+  if (!list.length) {
+    sheet(`<div class="eyebrow" style="margin-top:0">Map</div><h2>Nothing to show yet</h2>
+      <div class="note" style="margin:6px 0 0">Once something on your schedule has a place attached, it turns up here. Try loading the sample day.</div>
+      <button class="btn full" style="margin-top:16px" onclick="closeSheet()">Close</button>`);
+    return;
+  }
+  sheet(`<div class="eyebrow" style="margin-top:0">Map</div><h2>Everywhere you're going</h2>
+    <div class="note" style="margin:6px 0 0">${list.length} place${list.length > 1 ? "s" : ""} coming up. Tap a pin to open it, drag one to correct it.</div>
+    <div id="mapfull"></div>`);
+  let L;
+  try { L = await loadLeaflet(); } catch (e) { return; }
+  const host = document.getElementById("mapfull");
+  if (!host) return;
+  if (MAP) { try { MAP.remove(); } catch (e) {} MAP = null; }
+  MAP = L.map(host, { zoomControl: true }).setView([list[0].place.lat, list[0].place.lng], 13);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(MAP);
+
+  const pts = [];
+  const here = (ORIGIN || S.home);
+  if (here) {
+    L.marker([here.lat, here.lng], { icon: L.divIcon({ className: "", iconSize: [16, 16], iconAnchor: [8, 8],
+      html: `<div style="width:16px;height:16px;border-radius:50%;background:#6FA890;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.35)"></div>` }) })
+      .addTo(MAP).bindPopup("You");
+    pts.push([here.lat, here.lng]);
+  }
+  list.forEach((e, i) => {
+    const p = [e.place.lat, e.place.lng];
+    pts.push(p);
+    const mk = L.marker(p, { draggable: true, icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
+      html: `<div style="width:26px;height:26px;border-radius:50%;background:#D96A62;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);color:#fff;font:700 12px Inter,sans-serif;display:grid;place-items:center">${i + 1}</div>` }) }).addTo(MAP);
+    mk.bindPopup(`<b>${esc(e.title)}</b><br>${fmtDay(e.start)} at ${fmtTime(e.start)}`);
+    mk.on("popupopen", () => { setTimeout(() => { closeSheet(); openDetail(e.id); }, 900); });
+    mk.on("dragend", () => {
+      const q = mk.getLatLng();
+      S.geo[geoKey(e.place.name)] = { lat: q.lat, lng: q.lng, pinned: true, label: "Placed by hand" };
+      S.events.forEach(x => { if (x.place && geoKey(x.place.name) === geoKey(e.place.name)) { x.place.lat = q.lat; x.place.lng = q.lng; x.place.rough = false; x.place.pinned = true; } });
+      save(); Sound.on(); toast(e.place.name + " moved");
+      rescheduleAll().then(renderHome);
+    });
+  });
+  if (pts.length > 1) MAP.fitBounds(L.latLngBounds(pts).pad(0.2));
+  setTimeout(() => { try { MAP.invalidateSize(); } catch (e) {} }, 150);
+}
+
 /* ---------- SHEET ---------- */
 function sheet(html) {
   $("sheetHost").innerHTML = `<div class="scrim" onclick="closeSheet()"></div><div class="sheet"><div class="grab"></div>${html}</div>`;
@@ -2008,7 +2145,10 @@ function renderCal() {
         <div class="card-s">${fmtTime(e.start)}${e.place && e.place.name ? " · " + esc(e.place.name) : ""}</div>
         <span class="tag t-${e.kind}">${e.kind}</span></button></div>`).join("")
       : `<div class="empty"><p style="margin:0">Nothing on this day.</p></div>`}
-    <button class="btn full" style="margin-top:14px" onclick="addForm()">Add to this day</button>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" style="flex:1" onclick="addForm()">Add to this day</button>
+      <button class="btn ghost" style="flex:1" onclick="openMapAll()">See the map</button>
+    </div>
     <div style="height:26px"></div>`;
 }
 function pickDay(iso) { SEL = new Date(iso); Sound.tap(); renderCal(); }
@@ -2082,7 +2222,7 @@ function renderSettings() {
   <div class="group">
     ${row("google", "Google", ACCOUNTS.length ? (ACCOUNTS.length === 1 ? esc(ACCOUNTS[0].email) : ACCOUNTS.length + " accounts syncing") : (S.accounts && S.accounts.length ? "Signed out — tap to reconnect " + esc(S.accounts[0]) : "Calendar, Classroom, Gmail"), pill(ACCOUNTS.length > 0, ACCOUNTS.length > 1 ? String(ACCOUNTS.length) : "Paired", "Pair"), ACCOUNTS.length ? "openAccounts()" : "pairGoogle()")}
     ${row("pin", "Location", p.location ? "Sharing while the app is open" : "Needed to time your departures", pill(p.location, "On", "Allow"), "pairLocation()")}
-    ${row("bell", "Notifications", !p.notifications ? "Nothing can reach you until this is on" : (BG ? "Arrive even with the app closed" : "Add to your home screen for background alerts"), pill(p.notifications && BG, "On", p.notifications ? "Finish" : "Allow"), "notifRow()")}
+    ${row("bell", "Notifications", !p.notifications ? "Nothing can reach you until this is on" : (PUSHOK ? "Arriving even when the app is closed" : (hasWorker() ? "Add to your home screen to get them in the background" : "Only while the app is open")), pill(p.notifications && PUSHOK, "On", p.notifications ? "Finish" : "Allow"), "notifRow()")}
     ${row("map", "Maps", p.maps ? "Live traffic and real addresses" : "Adds live traffic and address lookup", pill(p.maps, "On", "Pair"), "pairMaps()")}
   </div>
   ${SANDBOXED ? `<div class="note" style="background:var(--amber-soft);color:var(--amber);border-radius:14px;padding:12px 14px;margin-bottom:10px">Running in a preview. Pairing buttons will play their animation but won't connect to anything — that needs the app on its own web address.</div>` : ""}
@@ -2090,12 +2230,9 @@ function renderSettings() {
 
   <div class="eyebrow">Additions</div>
   <div class="group">
-    ${row("sun", "Weather", s.weather ? "Morning brief and severe alerts" : "Off", sw(s.weather), "tog('weather')")}
-    ${rowCfg("ball", "Sports", s.sports ? (S.teams.length ? "Following " + S.teams.map(t => t.id).join(", ") : "Tap to add a team") : "Off", s.sports, "tog('sports')", "addTeam()")}
-    ${row("car", "Traffic", s.traffic ? (Object.keys(S.routeLearning).length ? "Learned " + Object.keys(S.routeLearning).length + " of your routes" : "Timing your trips to learn your routes") : "Off", sw(s.traffic), "tog('traffic')")}
     ${rowCfg("loop", "Daily reminders", S.routines.length ? S.routines.length + " set up, tap to edit" : "Tap to add a repeating nudge", s.routines, "tog('routines')", "editRoutines()")}
-    ${rowCfg("google", "Email scan", s.emailScan === false ? "Off" : (s.autoAccept !== false ? "Suggests events, and adds the ones you said yes to" : "Suggests events, you approve each one"), s.emailScan !== false, "tog('emailScan')", "openEmailScan()")}
   </div>
+  <div class="note">Reading your mail and learning your routes switch themselves on when you pair Google and allow location. Nothing extra to flip.</div>
 
   <div class="eyebrow">This app</div>
   <div class="group">
@@ -2144,10 +2281,13 @@ function openEmailScan() {
     <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
 }
 
-function notifRow() {
+async function notifRow() {
   if (!S.paired.notifications) { pairNotifications(); return; }
-  if (!BG) { installApp(); return; }
-  toast("You're all set — alerts arrive with the app closed");
+  if (!PUSHOK) {
+    if (await enablePush()) { renderSettings(); toast("Background alerts are on"); return; }
+    installApp(); return;
+  }
+  testPush();
 }
 
 function openTiming() {
@@ -2379,6 +2519,7 @@ async function initSW() {
         if (st.state === "granted") { await SWREG.periodicSync.register("omw-check", { minInterval: 15 * 60000 }); BG = true; }
       } catch (e) {}
     }
+    if (S.paired.notifications) enablePush().then(() => renderSettings());
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
       if (!document.hidden && SWREG) SWREG.update().catch(() => {});

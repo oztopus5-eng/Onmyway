@@ -1,6 +1,6 @@
 /* On My Way — service worker
    Two jobs: keep the app openable offline, and deliver alerts when the tab is closed. */
-const CACHE = "omw-v1.7.2";
+const CACHE = "omw-v1.8.1";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -47,15 +47,36 @@ function db() {
     r.onerror = () => rej(r.error);
   });
 }
-async function due() {
+async function all() {
   const d = await db();
-  const items = await new Promise(res => {
+  return new Promise(res => {
     const rq = d.transaction("q", "readonly").objectStore("q").getAll();
     rq.onsuccess = () => res(rq.result || []); rq.onerror = () => res([]);
   });
-  const t = Date.now();
-  return items.filter(i => !i.sent && i.at <= t && t - i.at < 30 * 60000);
 }
+/** Anything whose moment has arrived. */
+async function due() {
+  const t = Date.now();
+  return (await all()).filter(i => !i.sent && i.at <= t && t - i.at < 30 * 60000);
+}
+/** Anything landing in the next 70 seconds — we were woken early on purpose. */
+async function soon() {
+  const t = Date.now();
+  return (await all()).filter(i => !i.sent && i.at > t && i.at - t < 70000);
+}
+
+const gapText = ms => {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60), r = m % 60;
+  if (h < 24) return h + "h" + (r ? " " + r + "m" : "");
+  const d = Math.round(h / 24);
+  return d + " day" + (d > 1 ? "s" : "");
+};
+/** Worked out at the instant it's shown, never when it was queued. */
+const bodyNow = i => String(i.body || "").replace("{gap}",
+  gapText(Math.max(0, (i.start || Date.now()) - Date.now())));
 async function markSent(ids) {
   const d = await db(), tx = d.transaction("q", "readwrite"), st = tx.objectStore("q");
   for (const id of ids) {
@@ -68,23 +89,54 @@ async function markSent(ids) {
 }
 async function check() {
   const items = await due();
-  if (!items.length) return;
+  if (!items.length) return 0;
   for (const i of items) {
     await self.registration.showNotification(i.title, {
-      body: i.body, tag: i.id, data: { id: i.id },
+      body: bodyNow(i), tag: i.id, data: { id: i.id },
       icon: "./icon-192.png", badge: "./icon-192.png",
       requireInteraction: !!i.urgent, silent: false
     });
   }
   await markSent(items.map(i => i.id));
+  return items.length;
 }
 
 self.addEventListener("periodicsync", e => { if (e.tag === "omw-check") e.waitUntil(check()); });
 self.addEventListener("sync", e => { if (e.tag === "omw-check") e.waitUntil(check()); });
 self.addEventListener("message", e => { if (e.data === "check") e.waitUntil(check()); });
+/**
+ * The push carries nothing. It's only a nudge to wake up and look at the
+ * queue we already stored, which is why none of your schedule is ever
+ * sent to a server.
+ */
+/**
+ * The cron can only fire on the minute, so it wakes us up to 60s early.
+ * Rather than alerting early or waiting for the next sweep and being late,
+ * we hold here for the exact remaining seconds and fire on the moment.
+ */
+async function checkPrecise() {
+  let n = await check();
+  const pending = await soon();
+  if (!pending.length) return n;
+  const wait = Math.min(...pending.map(i => i.at - Date.now()));
+  if (wait > 0 && wait < 70000) await new Promise(r => setTimeout(r, wait + 250));
+  return n + await check();
+}
+
 self.addEventListener("push", e => {
-  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) {}
-  e.waitUntil(self.registration.showNotification(d.title || "On My Way", { body: d.body || "", icon: "./icon-192.png" }));
+  e.waitUntil(checkPrecise().then(async n => {
+    if (n) return;
+    // iOS insists on something visible for every push it delivers
+    const shown = await self.registration.getNotifications();
+    if (!shown.length) {
+      await self.registration.showNotification("On My Way", {
+        body: "Checking your schedule…", tag: "omw-wake", silent: true, icon: "./icon-192.png"
+      });
+      setTimeout(async () => {
+        for (const x of await self.registration.getNotifications({ tag: "omw-wake" })) x.close();
+      }, 4000);
+    }
+  }));
 });
 
 self.addEventListener("notificationclick", e => {
