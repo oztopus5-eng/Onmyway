@@ -411,7 +411,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.8.1";
+const VERSION = "1.9.0";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -977,21 +977,21 @@ function shareSetup() {
   Sound.open();
   const link = makeSetupLink();
   if (!link) {
-    sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Invite someone</h2>
+    sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Add device</h2>
       <div class="note" style="margin:6px 0 0">${SANDBOXED
-        ? "This is a preview, so there's no saved connection to share yet. On your real site, pair Google once and this turns into a link you can send anyone."
-        : "Pair your Google account first. Once it's connected, this becomes a link that sets up someone else's copy for them."}</div>
+        ? "This is a preview, so there's no saved connection yet. On your real site, pair Google once and this turns into a link that sets up another device."
+        : "Pair your Google account first. Once it's connected, this becomes a link that carries the setup to your other devices."}</div>
       <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin-top:14px;font-size:12px;word-break:break-all;line-height:1.5;color:#C6AEAB">${esc(location.origin + location.pathname)}?s=…</div>
-      <div class="note" style="margin-top:14px">They open the link, tap Pair, and that's it — no keys, no setup. You'll still need to add their address as a test user in Google Cloud.</div>
+      <div class="note" style="margin-top:14px">Open the link on the other device, tap Pair, and that's it — no keys to type. Lending it to someone else works too, as long as their address is a test user in Google Cloud.</div>
       <button class="btn full" style="margin-top:16px" onclick="closeSheet()">Got it</button>`);
     return;
   }
-  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Invite someone</h2>
-    <div class="note" style="margin:6px 0 0">Send them this link. It sets up their copy, so all they do is open it and tap Pair.</div>
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Add device</h2>
+    <div class="note" style="margin:6px 0 0">Open this on your phone or laptop. It carries the setup across, so all you do is tap Pair.</div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin-top:14px;font-size:12px;word-break:break-all;line-height:1.5;color:var(--muted)">${esc(link)}</div>
     <button class="btn full" style="margin-top:14px" onclick="copySetup(${JSON.stringify(link).replace(/"/g, "&quot;")})">Copy the link</button>
-    <div class="note" style="margin-top:14px">One thing first: add their Gmail address as a test user in Google Cloud, under Audience. Google blocks anyone who isn't on that list, and it caps out at 100 people.</div>
-    <div class="note" style="margin-top:10px">They only ever see their own calendar and mail. You can't see theirs, and they can't see yours.</div>`);
+    <div class="note" style="margin-top:14px">On iPhone, open it in Safari and add it to your home screen from there — that's what lets notifications arrive with the app closed.</div>
+    <div class="note" style="margin-top:10px">Sharing it with someone else works too, but their address has to be a test user in Google Cloud first. They'd only ever see their own calendar and mail, never yours.</div>`);
 }
 async function copySetup(link) {
   try { await navigator.clipboard.writeText(link); Sound.on(); toast("Link copied"); }
@@ -1802,7 +1802,7 @@ function openDetail(id) {
   const canRoute = e.place && e.place.name;
   const q = canRoute ? encodeURIComponent(e.place.name) : "";
   const t = notifText(e);
-  setTimeout(() => drawMap(e), 60);
+  setTimeout(() => { drawMap(e); showSteps(e); }, 60);
   sheet(`
     <div class="eyebrow" style="margin-top:0">${e.kind}</div>
     <h2>${esc(e.title)}</h2>
@@ -1819,7 +1819,8 @@ function openDetail(id) {
       ${e.travel ? `<div class="detail-meta"><div class="dm-k">Travel</div><div class="dm-v">${e.travel} min${S.paired.maps ? " with live traffic" : " by road"}${e.place && e.place.rough ? " — location is only a rough guess" : ""}</div></div>` : ""}
     </div>
     ${e.place && e.place.lat ? `<div id="mapbox"></div>
-      <div class="pinhint">${e.place.pinned ? "You placed this one yourself." : "Wrong spot? Drag the red pin to fix it."}</div>` : ""}
+      <div class="pinhint">${e.place.pinned ? "You placed this one yourself." : "Wrong spot? Drag the red pin to fix it."}</div>
+      <div id="stepbox"></div>` : ""}
     ${e.place && e.place.name ? `<button class="btn ghost full" style="margin-top:12px" onclick="pinPlace(${JSON.stringify(e.place.name).replace(/"/g, "&quot;")})">${e.place.pinned ? "Re-pin from where you are" : "I'm here now — pin this place exactly"}</button>` : ""}
     <div style="background:var(--iris-soft);border-radius:16px;padding:14px;margin-top:16px">
       <div class="chip-k" style="color:var(--iris);margin-bottom:6px">You'll be told</div>
@@ -2007,6 +2008,48 @@ function loadLeaflet() {
   return LEAFLET;
 }
 
+/** OSRM gives real turn instructions. Free, no key. */
+function stepText(s) {
+  const m = s.maneuver || {}, road = s.name || "";
+  const dir = { left: "left", right: "right", "slight left": "slightly left", "slight right": "slightly right",
+    "sharp left": "sharp left", "sharp right": "sharp right", straight: "straight", uturn: "around" }[m.modifier] || m.modifier || "";
+  const on = road ? " onto " + road : "";
+  switch (m.type) {
+    case "depart": return "Set off" + (road ? " on " + road : "");
+    case "arrive": return "Arrive";
+    case "turn": return "Turn " + dir + on;
+    case "new name": return "Continue" + (road ? " on " + road : "");
+    case "merge": return "Merge " + dir + on;
+    case "on ramp": return "Take the ramp" + on;
+    case "off ramp": return "Take the exit" + on;
+    case "fork": return "Keep " + dir + on;
+    case "roundabout": case "rotary": return "Take the roundabout" + (m.exit ? ", exit " + m.exit : "") + on;
+    case "continue": return "Continue " + dir + on;
+    default: return (dir ? "Head " + dir : "Continue") + on;
+  }
+}
+const dist = m => m < 950 ? Math.round(m / 10) * 10 + " m" : (m / 1000).toFixed(1) + " km";
+
+async function showSteps(ev) {
+  const host = document.getElementById("stepbox");
+  const here = ORIGIN || S.home;
+  if (!host || !here || !ev.place || !ev.place.lat) return;
+  try {
+    const u = "https://router.project-osrm.org/route/v1/driving/" +
+      here.lng.toFixed(5) + "," + here.lat.toFixed(5) + ";" +
+      ev.place.lng.toFixed(5) + "," + ev.place.lat.toFixed(5) + "?overview=false&steps=true";
+    const d = await (await fetch(u)).json();
+    if (d.code !== "Ok" || !d.routes[0]) { host.innerHTML = ""; return; }
+    const steps = d.routes[0].legs[0].steps || [];
+    if (steps.length < 2) { host.innerHTML = ""; return; }
+    host.innerHTML = `<div class="eyebrow">Directions</div>
+      <div class="group">${steps.map(s => `<div class="row" style="padding:11px 15px">
+        <div class="row-txt"><div class="row-t" style="font-size:14px;font-weight:500">${esc(stepText(s))}</div>
+        ${s.distance > 25 ? `<div class="row-s">${dist(s.distance)}</div>` : ""}</div></div>`).join("")}</div>
+      <div class="note">${dist(d.routes[0].distance)} · about ${Math.round(d.routes[0].duration / 60)} min without traffic</div>`;
+  } catch (e) { host.innerHTML = ""; }
+}
+
 async function drawMap(ev) {
   const host = document.getElementById("mapbox");
   if (!host || !ev.place || !ev.place.lat) return;
@@ -2186,15 +2229,60 @@ function addForm() {
     <select class="field" id="f_k"><option value="meeting">Meeting or appointment</option><option value="assignment">Assignment due</option></select>
     <label class="lbl">Date</label><input class="field" id="f_d" type="date" value="${iso}">
     <label class="lbl">Time</label><input class="field" id="f_h" type="time" value="15:00">
-    <label class="lbl">Where <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label><input class="field" id="f_p" placeholder="Address or place name">
+    <label class="lbl">Where <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label>
+    <input class="field" id="f_p" placeholder="Start typing a place" autocomplete="off" oninput="suggestPlaces(this.value)">
+    <div id="f_sugg"></div>
     <label class="lbl">Who <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label><input class="field" id="f_w" placeholder="Name">
     <button class="btn full" style="margin-top:20px" onclick="saveNew()">Save</button>`);
 }
+let PICKED = null, suggTimer = null;
+/** Live place search, straight off OpenStreetMap. */
+function suggestPlaces(q) {
+  PICKED = null;
+  clearTimeout(suggTimer);
+  const box = $("f_sugg");
+  if (!box) return;
+  if (!q || q.trim().length < 3) { box.innerHTML = ""; return; }
+  suggTimer = setTimeout(async () => {
+    try {
+      const near = ORIGIN || S.home;
+      let u = "https://photon.komoot.io/api/?limit=5&q=" + encodeURIComponent(q.trim());
+      if (near) u += "&lat=" + near.lat.toFixed(4) + "&lon=" + near.lng.toFixed(4);
+      const d = await (await fetch(u)).json();
+      const rows = (d.features || []).map(f => {
+        const p = f.properties || {};
+        const label = [p.name, p.street && (p.housenumber ? p.housenumber + " " + p.street : p.street), p.city, p.state]
+          .filter(Boolean).join(", ");
+        return { label, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
+      }).filter(r => r.label);
+      if (!rows.length) { box.innerHTML = ""; return; }
+      box.innerHTML = `<div class="group" style="margin-top:8px">` + rows.map((r, i) =>
+        `<button class="row" onclick="usePlace(${i})"><div class="row-ico">${ICONS.pin}</div>
+         <div class="row-txt"><div class="row-t" style="font-size:14px">${esc(r.label)}</div></div></button>`).join("") + `</div>`;
+      box.dataset.rows = JSON.stringify(rows);
+    } catch (e) { box.innerHTML = ""; }
+  }, 350);
+}
+function usePlace(i) {
+  const box = $("f_sugg");
+  const rows = JSON.parse(box.dataset.rows || "[]");
+  const r = rows[i]; if (!r) return;
+  PICKED = r;
+  $("f_p").value = r.label;
+  box.innerHTML = "";
+  S.geo[geoKey(r.label)] = { lat: r.lat, lng: r.lng, label: r.label };
+  save(); Sound.tap();
+}
+
 async function saveNew() {
   const t = $("f_t").value.trim(); if (!t) { toast("Give it a name"); return; }
   const start = new Date($("f_d").value + "T" + $("f_h").value);
   const p = $("f_p").value.trim(), w = $("f_w").value.trim();
-  S.events.push({ id: "u_" + Date.now(), src: "manual", kind: $("f_k").value, title: t, start: start.toISOString(), place: p ? { name: p } : null, who: w || null });
+  const place = p ? (PICKED && PICKED.label === p
+    ? { name: p, lat: PICKED.lat, lng: PICKED.lng }
+    : { name: p }) : null;
+  PICKED = null;
+  S.events.push({ id: "u_" + Date.now(), src: "manual", kind: $("f_k").value, title: t, start: start.toISOString(), place, who: w || null });
   await rescheduleAll(); closeSheet(); Sound.on(); toast("Added"); renderCal(); renderHome();
 }
 
@@ -2223,7 +2311,7 @@ function renderSettings() {
     ${row("google", "Google", ACCOUNTS.length ? (ACCOUNTS.length === 1 ? esc(ACCOUNTS[0].email) : ACCOUNTS.length + " accounts syncing") : (S.accounts && S.accounts.length ? "Signed out — tap to reconnect " + esc(S.accounts[0]) : "Calendar, Classroom, Gmail"), pill(ACCOUNTS.length > 0, ACCOUNTS.length > 1 ? String(ACCOUNTS.length) : "Paired", "Pair"), ACCOUNTS.length ? "openAccounts()" : "pairGoogle()")}
     ${row("pin", "Location", p.location ? "Sharing while the app is open" : "Needed to time your departures", pill(p.location, "On", "Allow"), "pairLocation()")}
     ${row("bell", "Notifications", !p.notifications ? "Nothing can reach you until this is on" : (PUSHOK ? "Arriving even when the app is closed" : (hasWorker() ? "Add to your home screen to get them in the background" : "Only while the app is open")), pill(p.notifications && PUSHOK, "On", p.notifications ? "Finish" : "Allow"), "notifRow()")}
-    ${row("map", "Maps", p.maps ? "Live traffic and real addresses" : "Adds live traffic and address lookup", pill(p.maps, "On", "Pair"), "pairMaps()")}
+    ${row("map", "Maps", p.maps ? "Google Maps — live traffic" : "OpenStreetMap — routes and addresses, no key needed", pill(true, p.maps ? "Google" : "On", ""), "openMapsInfo()")}
   </div>
   ${SANDBOXED ? `<div class="note" style="background:var(--amber-soft);color:var(--amber);border-radius:14px;padding:12px 14px;margin-bottom:10px">Running in a preview. Pairing buttons will play their animation but won't connect to anything — that needs the app on its own web address.</div>` : ""}
   <div class="note">Everything paired stays in this browser. Nothing is uploaded, because there is no server to upload it to.</div>
@@ -2241,9 +2329,7 @@ function renderSettings() {
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
     ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
     ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
-    ${row("google", "Invite someone", clientId() ? "One link that sets up their copy for them" : "Pair Google first, then this makes the link", `<div class="pill no">Share</div>`, "shareSetup()")}
-    ${row("bell", "Preview animations", "Plays the opening, all four pairings, and the rest", `<div class="pill no">Play</div>`, "previewAll()")}
-    ${row("loop", "Force update", "Clears the cache and reloads from GitHub", `<div class="pill no">Reload</div>`, "forceUpdate()")}
+    ${row("google", "Add device", clientId() ? "One link that sets up your phone or laptop" : "Pair Google first, then this makes the link", `<div class="pill no">Link</div>`, "shareSetup()")}
     ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
   </div>
   <div style="height:40px"></div>`;
@@ -2279,6 +2365,19 @@ function openEmailScan() {
     <div class="note">If someone proposes a time and you write back something like "sounds good" or "see you then", it goes straight onto your schedule. Reply that you can't make it and the suggestion disappears instead.</div>
     <div class="note" style="margin-top:10px">It reads plain wording, so it will occasionally get one wrong. Anything added this way says so, and removing it takes one tap.</div>
     <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
+}
+
+function openMapsInfo() {
+  Sound.open();
+  sheet(`<div class="eyebrow" style="margin-top:0">Paired apps</div><h2>Maps</h2>
+    <div class="group" style="margin-top:16px">
+      ${row("map", "OpenStreetMap", "Road routes and address lookup", pill(true, "On", ""), "")}
+      ${row("car", "Live traffic", S.paired.maps ? "Google Maps is connected" : "Needs a Google Maps key, which needs a card on file", pill(S.paired.maps, "On", "Off"), "")}
+    </div>
+    <div class="note">Everything the app needs from a map already works for free — real road routes, travel times, address lookup, and the map itself all come from OpenStreetMap. There's nothing to pair.</div>
+    <div class="note" style="margin-top:10px">A Google Maps key would add live traffic on top, but Google requires a credit card even on the free tier. The estimates without it are usually within a few minutes, and route learning closes most of the rest of the gap.</div>
+    ${S.paired.mapsKeyWanted || S.keys.mapsKey ? `<button class="btn full" style="margin-top:16px" onclick="closeSheet();openKeys()">Add a Maps key</button>` : ""}
+    <button class="btn ghost full" style="margin-top:10px" onclick="closeSheet()">Done</button>`);
 }
 
 async function notifRow() {
