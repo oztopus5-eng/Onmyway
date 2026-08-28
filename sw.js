@@ -1,6 +1,6 @@
 /* On My Way — service worker
    Two jobs: keep the app openable offline, and deliver alerts when the tab is closed. */
-const CACHE = "omw-v1.11.6";
+const CACHE = "omw-v1.12.0";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -93,7 +93,8 @@ async function sweep() {
   let closed = 0;
   for (const n of await self.registration.getNotifications()) {
     const d = n.data || {};
-    if (d.expire && now > d.expire) { n.close(); closed++; }
+    const cap = d.expire || ((n.timestamp || 0) + 45 * 60000) || 0;
+    if (!cap || now > cap) { n.close(); closed++; }   // no stamp at all means it's from an old build
   }
   return closed;
 }
@@ -117,8 +118,8 @@ async function check() {
   return items.length;
 }
 
-self.addEventListener("periodicsync", e => { if (e.tag === "omw-check") e.waitUntil(check()); });
-self.addEventListener("sync", e => { if (e.tag === "omw-check") e.waitUntil(check()); });
+self.addEventListener("periodicsync", e => { if (e.tag === "omw-check") e.waitUntil(check()); else e.waitUntil(sweep()); });
+self.addEventListener("sync", e => { if (e.tag === "omw-check") e.waitUntil(check()); else e.waitUntil(sweep()); });
 self.addEventListener("message", e => {
   if (e.data === "check") e.waitUntil(check());
   if (e.data === "sweep") e.waitUntil(sweep());
@@ -149,7 +150,7 @@ async function checkPrecise() {
 }
 
 self.addEventListener("push", e => {
-  e.waitUntil(checkPrecise().then(async n => {
+  e.waitUntil(sweep().then(checkPrecise).then(async n => {
     if (n) return;
     // iOS insists on something visible for every push it delivers
     const shown = await self.registration.getNotifications();

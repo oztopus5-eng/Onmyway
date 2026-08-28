@@ -197,11 +197,26 @@ h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;lett
 
 /* ---------- settings ---------- */
 .group{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.rowwrap{border-bottom:1px solid var(--line)}
+.rowwrap:last-child{border-bottom:0}
 .row{display:flex;align-items:center;gap:13px;padding:14px 15px;border-bottom:1px solid var(--line);width:100%;text-align:left}
+.rowwrap .row{border-bottom:0}
 .row:last-child{border-bottom:0}
+.rowi{
+  width:22px;height:22px;border-radius:50%;flex:none;
+  background:var(--line);color:var(--muted);
+  font:700 12px/1 "Bricolage Grotesque",Inter,serif;
+  display:grid;place-items:center;transition:background .18s,color .18s,transform .12s;
+}
+.rowi.on{background:var(--iris);color:#fff}
+.rowi:active{transform:scale(.85)}
+.row-s.open{
+  padding:0 15px 13px 59px;font-size:12.5px;color:var(--muted);line-height:1.5;
+  animation:rise .26s cubic-bezier(.2,.7,.3,1) both;
+}
 .row-ico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;background:var(--iris-soft);color:var(--iris)}
 .row-ico svg{width:18px;height:18px;stroke-width:2}
-.row-txt{flex:1;min-width:0}
+.row-txt{flex:1;min-width:0;background:none;border:0;text-align:left;padding:0}
 .row-t{font-weight:600;font-size:14.5px;line-height:1.25}
 .row-s{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.35;overflow-wrap:anywhere}
 .row-ico{border:0}
@@ -256,6 +271,8 @@ button.pill.no:active{transform:scale(.94)}
 .rel.now .rel-l{color:var(--ink)}
 .rel.now .rel-l::before{background:var(--iris)}
 /* taken away, rather than added */
+.rel-l.fix::before{background:#5B8DEF}
+.rel.now .rel-l.fix::before{background:#5B8DEF}
 .rel-l.gone::before{
   background:none;content:"–";
   left:0;top:3px;width:auto;height:auto;
@@ -408,6 +425,24 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 .step-msg{font-size:12.5px;margin-top:10px;line-height:1.5}
 .step-msg.ok{color:var(--mint)}
 .step-msg.bad{color:var(--coral)}
+
+/* ---------- update ---------- */
+.updbanner{
+  display:flex;align-items:center;gap:12px;width:100%;
+  background:var(--iris-soft);border:1px solid var(--iris);border-radius:var(--r);
+  padding:13px 15px;margin-top:14px;text-align:left;
+}
+.updbanner .ui{
+  width:32px;height:32px;border-radius:10px;background:var(--iris);color:#fff;flex:none;
+  display:grid;place-items:center;
+}
+.updbanner .ui svg{width:17px;height:17px;stroke-width:2.4}
+.updbanner .ut{flex:1;min-width:0}
+.updbanner .ut b{display:block;font-size:14.5px;font-weight:600;color:var(--ink)}
+.updbanner .ut span{font-size:12.5px;color:var(--muted)}
+.updbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.updfill{height:100%;width:3%;background:var(--iris);border-radius:4px;transition:width .35s ease}
+.updstat{font-size:12.5px;color:var(--muted);margin-top:9px;text-align:center;font-variant-numeric:tabular-nums}
 
 /* ---------- toast + version ---------- */
 #toast{
@@ -575,7 +610,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.11.6";
+const VERSION = "1.12.0";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -1098,7 +1133,7 @@ function deliver(ev) {
   } else toast(t.body);
   S.fired[ev.id] = Date.now(); save();
   if (S.settings.traffic) noteDeparture(ev, ev.travel);
-  queueToIDB();
+  queueToIDB(); syncSoon();
 }
 function tick() {
   const t = Date.now();
@@ -1112,6 +1147,7 @@ function tick() {
     ids.forEach(id => { if (!S.fired[id]) { S.fired[id] = Date.now(); ch = true; } });
     if (ch) save();
   });
+  if (SWREG && SWREG.active) SWREG.active.postMessage("sweep");
   const home = document.getElementById("scr-home");
   if (home && !home.classList.contains("hide")) renderHome();
 }
@@ -1199,6 +1235,7 @@ function shareSetup() {
     <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin-top:14px;font-size:12px;word-break:break-all;line-height:1.5;color:var(--muted)">${esc(link)}</div>
     <button class="btn full" style="margin-top:14px" onclick="copySetup(${JSON.stringify(link).replace(/"/g, "&quot;")})">Copy the link</button>
     <div class="note" style="margin-top:14px">On iPhone, open it in Safari and add it to your home screen from there — that's what lets notifications arrive with the app closed.</div>
+    <div class="note" style="margin-top:10px">Pair the same Google account on both and they stay in step: tick something off on one and it clears on the other, school feeds carry across, and you won't get buzzed twice for the same thing.</div>
     <div class="note" style="margin-top:10px">Sharing it with someone else works too, but their address has to be a test user in Google Cloud first. They'd only ever see their own calendar and mail, never yours.</div>`);
 }
 async function copySetup(link) {
@@ -1460,16 +1497,21 @@ function icsDate(val, params) {
 const icsUnesc = s => String(s).replace(/\\n/gi, " ").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\").trim();
 
 const CATS = [
-  ["exam",     "Tests and exams",  /\b(test|exam|midterm|final|assessment|quiz)\b/i],
-  ["project",  "Projects",         /\b(project|essay|paper|presentation|lab report|portfolio|draft|dbq)\b/i],
-  ["homework", "Homework",         /\b(homework|hw|assignment|reading|problem set|pset|worksheet|due)\b/i],
-  ["schedule", "Class schedule",   /\b(period|block|class|lecture|advisory|homeroom|assembly|study hall)\b/i]
+  ["exam",     "Test",     /\b(test|exam|midterm|final|assessment|quiz|prueba|examen|parcial|control|evaluaci[oó]n|contr[oô]le|klausur|pr[uü]fung|verifica|prova)\b/i],
+  ["project",  "Project",  /\b(project|essay|paper|presentation|lab report|portfolio|draft|dbq|proyecto|ensayo|redacci[oó]n|informe|presentaci[oó]n|trabajo|projet|expos[eé]|projekt|progetto)\b/i],
+  ["homework", "Homework", /\b(homework|hw|assignment|reading|problem set|pset|worksheet|due|tarea|deberes|lectura|ejercicios|actividad|entrega|devoirs|hausaufgabe|compiti)\b/i],
+  ["schedule", "Class",    /\b(period|block|class|lecture|advisory|homeroom|assembly|study hall|clase|per[ií]odo|hora|asignatura|curso|cours|unterricht|lezione)\b/i]
 ];
+const CATNAME = { exam: "Test", project: "Project", homework: "Homework", schedule: "Class" };
+/** Words that mean a deadline, in the languages people actually get mail in. */
+const DUEWORDS = /\b(due|deadline|submit|hand in|turn in|entrega|entregar|vence|fecha l[ií]mite|plazo|remise|abgabe|consegna)\b/i;
+
 /** Work out what a feed item actually is, from what it's called. */
 function classify(title, isDue) {
   for (const [key, , re] of CATS) if (re.test(title)) return key;
   return isDue ? "homework" : "schedule";
 }
+
 const feedOf = e => S.feeds.find(f => f.id === e.feed);
 /** Should this one be allowed to interrupt you? */
 function alertsOn(e) {
@@ -1489,8 +1531,10 @@ function parseICS(text, feed) {
       if (cur && cur.start && cur.summary) {
         const when = cur.start.at;
         if (when && when.getTime() > Date.now() - 12 * 3600e3 && when.getTime() < Date.now() + 60 * 864e5) {
+          const cats = CATS.filter(([, , re]) => re.test(cur.summary)).map(([k]) => k);
           const isDue = feed.kind === "assignment" ||
-            /\b(due|assignment|homework|essay|quiz|test|exam|project|reading)\b/i.test(cur.summary);
+            DUEWORDS.test(cur.summary) ||
+            cats.some(k => k !== "schedule");
           const title = icsUnesc(cur.summary);
           out.push({
             id: "f" + feed.id + "_" + (cur.uid || (cur.summary + when.getTime())).replace(/[^\w]/g, "").slice(0, 40),
@@ -1628,7 +1672,7 @@ async function addFeed() {
     url: u.replace(/^webcal:/i, "https:"), kind: $("fd_k").value,
     notify: { exam: true, project: true, homework: true, schedule: false }
   });
-  save(); Sound.on(); closeSheet(); toast("Checking " + n + "…");
+  save(); Sound.on(); closeSheet(); toast("Checking " + n + "…"); syncSoon();
   await syncFeeds();
   renderHome(); renderSettings(); openFeeds();
 }
@@ -2059,6 +2103,74 @@ async function testPush() {
   } catch (e) { toast("Couldn't reach the worker"); }
 }
 
+/* ============================================================
+   DEVICE SYNC
+   Your phone and your iPad already pull the same calendar and the same
+   feeds, so those match on their own. What didn't match was everything
+   you'd done to them: what you'd ticked off, which feeds you'd added,
+   places you'd pinned, and which alerts had already gone out — which is
+   why both devices used to buzz for the same thing.
+   ============================================================ */
+let SYNCBUSY = false, LASTSYNC = 0;
+const syncWho = () => (ACCOUNTS[0] && ACCOUNTS[0].email) || (S.accounts && S.accounts[0]) || null;
+
+async function pullPush(force) {
+  const who = syncWho();
+  if (!who || !hasWorker() || SYNCBUSY) return false;
+  if (!force && Date.now() - LASTSYNC < 25000) return false;
+  SYNCBUSY = true;
+  try {
+    const r = await fetch(workerBase() + "/sync", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        who,
+        data: {
+          banned: S.banned,
+          fired: S.fired,
+          geo: pinnedOnly(),
+          feeds: S.feeds
+        }
+      })
+    });
+    if (!r.ok) return false;
+    const { data } = await r.json();
+    if (!data) return false;
+
+    let changed = false;
+    for (const id in data.banned) if (!S.banned[id]) { S.banned[id] = data.banned[id]; changed = true; }
+    for (const id in data.fired) if (!S.fired[id]) { S.fired[id] = data.fired[id]; clearNotif(id); changed = true; }
+    for (const k in data.geo) if (!S.geo[k] || (!S.geo[k].pinned && data.geo[k].pinned)) { S.geo[k] = data.geo[k]; changed = true; }
+    if (data.feeds && data.feeds.length) {
+      for (const f of data.feeds) {
+        if (!S.feeds.some(x => x.url === f.url)) { S.feeds.push(f); changed = true; }
+      }
+    }
+    if (changed) {
+      S.events = S.events.filter(e => !S.banned[e.id]);
+      save();
+      await rescheduleAll();
+      renderHome();
+    }
+    LASTSYNC = Date.now();
+    return changed;
+  } catch (e) { return false; }
+  finally { SYNCBUSY = false; }
+}
+
+/** Only places you placed by hand are worth carrying across — the rest can be looked up again. */
+function pinnedOnly() {
+  const out = {};
+  for (const k in S.geo) if (S.geo[k] && S.geo[k].pinned) out[k] = S.geo[k];
+  return out;
+}
+
+/** Something changed here, so tell the other device sooner rather than later. */
+let syncSoonT = null;
+function syncSoon() {
+  clearTimeout(syncSoonT);
+  syncSoonT = setTimeout(() => pullPush(true), 1500);
+}
+
 function queueToIDB() {
   try {
     const items = upcoming().filter(e => e.alertAt && !S.fired[e.id] && alertsOn(e)).slice(0, 40).map(e => {
@@ -2209,6 +2321,13 @@ function renderHome() {
     chips.push(`<div class="chip"><div class="chip-k">${g.state === "in" ? "Live" : g.state === "post" ? "Final" : "Upcoming"}</div><div class="chip-v" style="font-size:15px">${esc(g.score || g.name)}</div><div class="chip-s">${esc(g.detail)}</div></div>`));
   if (chips.length) h += `<div class="eyebrow">Around you</div><div class="strip">${chips.join("")}</div>`;
 
+  if (UPD) {
+    h += `<button class="updbanner" onclick="openUpdate()">
+      <div class="ui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+      <div class="ut"><b>Update available</b><span>Version ${esc(UPD.version)} · ${fmtBytes(UPD.size)}</span></div>
+      <div class="pill no">Get it</div></button>`;
+  }
+
   if (S.suggestions.length) {
     h += `<div class="eyebrow">Spotted in your email</div>`;
     S.suggestions.slice(0, 4).forEach(s => {
@@ -2252,7 +2371,7 @@ function renderHome() {
         <button style="all:unset;display:block;width:100%;cursor:pointer" onclick="openDetail('${e.id}')">
           <div class="card-t" style="padding-right:${e.kind === "assignment" ? "34px" : "0"}">${esc(e.title)}</div>
           <div class="card-s">${e.place && e.place.name ? esc(e.place.name) : (e.course ? esc(e.course) : (e.who ? "with " + esc(e.who) : "No location"))}</div>
-          ${S.look.tags ? `<span class="tag t-${e.kind}">${e.kind}</span>` : ""}${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}${!alertsOn(e) ? `<span class="tag t-game" style="margin-left:6px">silent</span>` : ""}
+          ${S.look.tags ? `<span class="tag t-${e.kind}">${e.cat && CATNAME[e.cat] ? CATNAME[e.cat] : e.kind}</span>` : ""}${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}${!alertsOn(e) ? `<span class="tag t-game" style="margin-left:6px">silent</span>` : ""}
         </button></div></div>`;
     });
     h += `</div>`;
@@ -2271,7 +2390,7 @@ function openDetail(id) {
   const t = notifText(e);
   setTimeout(() => { drawMap(e); showSteps(e); }, 60);
   sheet(`
-    <div class="eyebrow" style="margin-top:0">${e.kind}</div>
+    <div class="eyebrow" style="margin-top:0">${e.cat && CATNAME[e.cat] ? esc(CATNAME[e.cat]) : e.kind}</div>
     <h2>${esc(e.title)}</h2>
     ${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}
     <div style="margin-top:16px">
@@ -2304,6 +2423,7 @@ function clearNotif(id) {
   try {
     if (SWREG && SWREG.active) SWREG.active.postMessage({ clear: id });
     if (SWREG && SWREG.getNotifications) SWREG.getNotifications({ tag: id }).then(ns => ns.forEach(n => n.close()));
+    if (window.Notification) setTimeout(() => { try { if (SWREG) SWREG.getNotifications({ tag: id }).then(ns => ns.forEach(n => n.close())); } catch (e) {} }, 400);
   } catch (e) {}
 }
 function clearAllNotifs() {
@@ -2321,7 +2441,7 @@ function markDone(id) {
   S.suggestions = S.suggestions.filter(x => x.id !== id);
   save(); Sound.on(); closeSheet();
   toast(e ? "Done — " + e.title : "Done");
-  queueToIDB(); renderHome(); if (SCREEN === "cal") renderCal();
+  queueToIDB(); syncSoon(); renderHome(); if (SCREEN === "cal") renderCal();
 }
 
 function askRemove(id) {
@@ -2343,7 +2463,7 @@ function removeEvent(id) {
   S.routines = S.routines.filter(r => !id.startsWith("r_" + r.id + "_"));
   const dropped = Store.get("omw_dismissed", {}); dropped[id] = 1; Store.set("omw_dismissed", dropped);
   save(); closeSheet(); Sound.off(); toast("Removed for good");
-  renderHome(); if (SCREEN === "cal") renderCal();
+  syncSoon(); renderHome(); if (SCREEN === "cal") renderCal();
 }
 
 /* ---------- the pairing handshake ---------- */
@@ -2803,18 +2923,42 @@ async function saveNew() {
 }
 
 /* ---------- SETTINGS ---------- */
+let ROWN = 0;
+const SHOWSUB = {};
+/**
+ * The small grey line under each title was making settings look busier than it
+ * is, so it's folded away behind the little i. Tapping the row still does the
+ * thing; tapping the i just tells you more.
+ */
 function row(ico, title, sub, right, click) {
-  return `<button class="row" ${click ? `onclick="${click}"` : ""}>
-    <div class="row-ico">${ICONS[ico]}</div>
-    <div class="row-txt"><div class="row-t">${title}</div><div class="row-s">${sub}</div></div>${right}</button>`;
+  const id = "r" + (++ROWN);
+  const open = SHOWSUB[title];
+  return `<div class="rowwrap">
+    <div class="row${click ? " tappable" : ""}">
+      <button class="row-ico"${click ? ` onclick="${click}"` : ""}>${ICONS[ico]}</button>
+      <button class="row-txt"${click ? ` onclick="${click}"` : ""}><div class="row-t">${title}</div></button>
+      ${sub ? `<button class="rowi${open ? " on" : ""}" onclick="tellMore(${JSON.stringify(title).replace(/"/g, "&quot;")})" aria-label="More">i</button>` : ""}
+      ${right}
+    </div>
+    ${open && sub ? `<div class="row-s open">${sub}</div>` : ""}
+  </div>`;
 }
+function tellMore(title) {
+  SHOWSUB[title] = !SHOWSUB[title];
+  Sound.tap();
+  if ($("sheetHost").innerHTML) { const f = LASTSHEET; if (f) f(); }
+  renderSettings();
+}
+let LASTSHEET = null;
 const hhmm = f => { const h24 = Math.floor(f), m = Math.round((f % 1) * 60); return (h24 % 12 || 12) + (m ? ":" + String(m).padStart(2, "0") : "") + (h24 >= 12 ? "pm" : "am"); };
 function rowCfg(ico, title, sub, isOn, toggle, open) {
-  return `<div class="row" style="padding-right:15px">
+  const shown = SHOWSUB[title];
+  return `<div class="rowwrap"><div class="row" style="padding-right:15px">
     <button class="row-ico" onclick="${open}">${ICONS[ico]}</button>
-    <button class="row-txt" onclick="${open}" style="text-align:left"><div class="row-t">${title}</div><div class="row-s">${sub}</div></button>
+    <button class="row-txt" onclick="${open}" style="text-align:left"><div class="row-t">${title}</div></button>
+    ${sub ? `<button class="rowi${shown ? " on" : ""}" onclick="tellMore(${JSON.stringify(title).replace(/"/g, "&quot;")})" aria-label="More">i</button>` : ""}
     <button class="sw${isOn ? " on" : ""}" onclick="${toggle}" aria-label="toggle"></button>
-  </div>`;
+  </div>${shown && sub ? `<div class="row-s open">${sub}</div>` : ""}</div>`;
 }
 const sw = on => `<div class="sw${on ? " on" : ""}"></div>`;
 const pill = (on, y, n) => `<div class="pill${on ? "" : " no"}">${on ? y : n}</div>`;
@@ -2837,13 +2981,13 @@ function renderSettings() {
 
   <div class="eyebrow">This app</div>
   <div class="group">
-    ${row("sun", "How it looks", (S.look.theme === "auto" ? "Automatic" : S.look.theme === "dark" ? "Dark" : "Light") + " · " + S.settings.bufferMin + " min of slack", `<div class="pill no">Edit</div>`, "openLook()")}
+    ${row("sun", "Visuals", (S.look.theme === "auto" ? "Automatic" : S.look.theme === "dark" ? "Dark" : "Light") + " · " + S.settings.bufferMin + " min of slack", `<div class="pill no">Edit</div>`, "openLook()")}
     ${row("map", "Connection keys", (BUILT_IN.clientId && !S.keys.googleClientId) ? "Built in — nothing for you to set up" : (hasWorker() ? "Worker connected — sign-ins are permanent" : (S.keys.googleClientId ? "Google key saved" : "Paste your Google and Maps keys")), pill(!!S.keys.googleClientId, "Saved", "Add"), "openKeys()")}
-    ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
-    ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
-    ${row("clock", "Set this up as your own", STEPS.filter(s => S.setup[s.id]).length + " of " + STEPS.length + " steps done", `<div class="pill no">Open</div>`, "openSetup()")}
+    ${row("bell", "Tutorial", "Six screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
+${UPD ? row("bell", "Update to " + UPD.version, "Ready to install · " + fmtBytes(UPD.size), `<div class="pill no">Update</div>`, "openUpdate()") : ""}
+    ${row("clock", "Setup", STEPS.filter(s => S.setup[s.id]).length + " of " + STEPS.length + " steps done", `<div class="pill no">Open</div>`, "openSetup()")}
     ${row("google", "Add device", clientId() ? "One link that sets up your phone or laptop" : "Pair Google first, then this makes the link", `<div class="pill no">Link</div>`, "shareSetup()")}
-    ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
+    ${row("car", "Erase everything", "Wipes this device back to a fresh install", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft);box-shadow:none">Erase</div>`, "askWipe()")}
   </div>
   <div style="height:40px"></div>`;
 }
@@ -2881,6 +3025,16 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.12.0", "26 Aug 2026", ["Your devices keep each other in step — tick something off on one and it clears on the other, feeds and pinned places carry across, and you won't be buzzed twice for the same thing",
+                             "Settings only shows the small print when you tap the i, so the list stays clean",
+                             "Erasing everything now spells out exactly what goes, with a straight yes or no",
+                             "Blue marks a fix in these notes, red a removal",
+                             "How it looks is now Visuals, Set this up is now Setup, Replay the tutorial is now Tutorial",
+                             "Removed What the scan found"]],
+  ["1.11.7", "26 Aug 2026", ["Reads Spanish and a few other languages, so a prueba shows up as a test rather than an assignment",
+                             "Cards say what a thing actually is — Test, Project, Homework, Class",
+                             "Alerts from older builds get cleared too, so nothing sits there forever",
+                             "An update banner with a progress bar and a rough time remaining"]],
   ["1.11.6", "26 Aug 2026", ["Alerts clear themselves after a while, or the moment the thing starts",
                              "Opening the app takes down anything still sitting there",
                              "Marking something done, or it disappearing from your school feed, clears its alert too"]],
@@ -2944,6 +3098,107 @@ function showNewDot() {
   b.appendChild(s);
 }
 
+/* ============================================================
+   UPDATES — spot a new build, then fetch it with a real progress bar
+   ============================================================ */
+let UPD = null;              // {version, notes} once something newer is out
+let UPDBUSY = false;
+
+/** Read the version straight out of the copy sitting on the server. */
+async function checkForUpdate(quiet) {
+  try {
+    const r = await fetch("./index.html?ts=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return null;
+    const text = await r.text();
+    const m = text.match(/const VERSION = "([^"]+)"/);
+    if (!m || m[1] === VERSION) { UPD = null; return null; }
+    const notes = [];
+    const cm = text.match(/const CHANGES = \[\s*\["([^"]+)",\s*"([^"]+)",\s*\[([\s\S]*?)\]\]/);
+    if (cm) {
+      const items = cm[3].match(/"((?:[^"\\]|\\.)*)"/g) || [];
+      items.forEach(s => notes.push(s.slice(1, -1).replace(/\\"/g, '"').replace(/\\u2014/g, "—")));
+    }
+    UPD = { version: m[1], notes, size: +(r.headers.get("content-length") || 0) || text.length };
+    if (!quiet) renderHome();
+    return UPD;
+  } catch (e) { return null; }
+}
+
+function fmtBytes(b) { return b > 900000 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
+
+function openUpdate() {
+  if (!UPD) { toast("You're on the newest build"); return; }
+  Sound.open();
+  sheet(`<div class="eyebrow" style="margin-top:0">Update</div><h2>Version ${esc(UPD.version)}</h2>
+    <div class="note" style="margin:6px 0 0">You're on ${VERSION}. About ${fmtBytes(UPD.size)} to download.</div>
+    ${UPD.notes.length ? `<div class="rel" style="margin-top:18px">${UPD.notes.map(n =>
+      `<div class="rel-l">${esc(n)}</div>`).join("")}</div>` : ""}
+    <div id="updbox" class="hide" style="margin-top:20px">
+      <div class="updbar"><div class="updfill" id="updfill"></div></div>
+      <div class="updstat" id="updstat">Starting…</div>
+    </div>
+    <button class="btn full" style="margin-top:20px" id="updgo" onclick="runUpdate()">Update now</button>
+    <button class="btn ghost full" style="margin-top:10px" onclick="closeSheet()">Not yet</button>
+    <div class="note" style="margin-top:14px">Nothing you've set up is touched — your pairing, places and settings all stay.</div>`);
+}
+
+async function runUpdate() {
+  if (UPDBUSY) return;
+  UPDBUSY = true;
+  Sound.tap();
+  const go = $("updgo"), box = $("updbox"), fill = $("updfill"), stat = $("updstat");
+  if (go) { go.textContent = "Updating…"; go.setAttribute("disabled", "1"); }
+  if (box) box.classList.remove("hide");
+
+  const files = ["./index.html", "./sw.js"];
+  const t0 = Date.now();
+  let got = 0, total = 0;
+  const set = (pct, msg) => {
+    if (fill) fill.style.width = Math.max(3, Math.min(100, pct)) + "%";
+    if (stat) stat.textContent = msg;
+  };
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const r = await fetch(files[i] + "?ts=" + Date.now(), { cache: "no-store" });
+      const len = +(r.headers.get("content-length") || 0);
+      total = total || (len ? len * files.length : 0);
+      if (r.body && r.body.getReader) {
+        const reader = r.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          got += value.length;
+          const pct = total ? (got / total) * 92 : ((i + 0.5) / files.length) * 92;
+          const secs = (Date.now() - t0) / 1000;
+          const rate = got / Math.max(secs, .25);
+          const left = total ? Math.max(0, (total - got) / Math.max(rate, 1)) : 0;
+          set(pct, fmtBytes(got) + (total ? " of " + fmtBytes(total) : "") +
+            (left > 1 ? " · about " + Math.ceil(left) + "s left" : " · almost there"));
+        }
+      } else {
+        await r.text();
+        set(((i + 1) / files.length) * 92, "Downloading…");
+      }
+    }
+
+    set(95, "Clearing the old copy…");
+    if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
+    if (navigator.serviceWorker) {
+      const rs = await navigator.serviceWorker.getRegistrations();
+      for (const r of rs) await r.unregister();
+    }
+    set(100, "Done — restarting");
+    Sound.ping();
+    setTimeout(() => location.replace(location.pathname + "?u=" + Date.now()), 700);
+  } catch (e) {
+    UPDBUSY = false;
+    set(0, "That didn't work. Check your connection and try again.");
+    if (go) { go.textContent = "Try again"; go.removeAttribute("disabled"); }
+    Sound.off();
+  }
+}
+
 function openChanges(fresh) {
   Sound.open();
   const newest = CHANGES[0][0];
@@ -2957,15 +3212,21 @@ function openChanges(fresh) {
         <div class="rel-d">${esc(date)}${got ? " · you got it " + fmtDay(got).toLowerCase() + " at " + fmtTime(got) : ""}</div>
         ${items.map(i => {
           const removed = /^(removed|got rid of|gone)\b/i.test(i) || / removed$/i.test(i);
-          return `<div class="rel-l${removed ? " gone" : ""}">${esc(i)}</div>`;
+          const fixed = !removed && /^(fixed|fix )|\bno longer\b|\bstopped\b|\bcan't hang\b|\bused to\b/i.test(i);
+          return `<div class="rel-l${removed ? " gone" : fixed ? " fix" : ""}">${esc(i)}</div>`;
         }).join("")}
       </div>`;
   }).join("");
   sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>${fresh ? "Updated to v" + VERSION : "What's new"}</h2>
-    <div class="note" style="margin:6px 0 18px">${fresh ? "Here's what changed. Scroll up for everything before it." : "Newest at the bottom. Scroll up for the history."}</div>
+    <div class="note" style="margin:6px 0 18px">${fresh ? "Here's what changed. Scroll up for everything before it." : "Newest at the bottom. Scroll up for the history."}
+      <span style="display:block;margin-top:8px">
+        <span style="color:var(--iris)">●</span> added &nbsp;
+        <span style="color:#5B8DEF">●</span> fixed &nbsp;
+        <span style="color:var(--coral);font-weight:800">–</span> removed
+      </span></div>
     ${rows}
     <button class="btn full" style="margin-top:28px" onclick="closeSheet()">${fresh ? "Got it" : "Close"}</button>
-    <button class="btn ghost full" style="margin-top:10px" onclick="forceUpdate()">Reload from source</button>
+    <button class="btn ghost full" style="margin-top:10px" onclick="closeSheet();setTimeout(()=>checkForUpdate().then(u=>u?openUpdate():toast('You\'re on the newest build')),250)">Check for an update</button>
     <div style="height:10px"></div>`);
   const sh = document.querySelector(".sheet");
   if (sh) setTimeout(() => { sh.scrollTop = sh.scrollHeight; }, 40);
@@ -3023,7 +3284,7 @@ function openLook() {
   const L = S.look, s = S.settings;
   const pick = (k, opts) => `<div class="tabs" style="margin-top:8px">${opts.map(([val, label]) =>
     `<button class="tab${L[k] === val ? " on" : ""}" onclick="setLook('${k}','${val}')">${label}</button>`).join("")}</div>`;
-  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>How it looks</h2>
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Visuals</h2>
 
     <label class="lbl">Theme</label>
     ${pick("theme", [["auto", "Automatic"], ["light", "Light"], ["dark", "Dark"]])}
@@ -3102,7 +3363,30 @@ async function forceUpdate() {
   } catch (e) {}
   location.replace(location.pathname + "?u=" + Date.now());
 }
-function wipe() { if (!confirm("Erase everything on this device?")) return; S = JSON.parse(JSON.stringify(DEFAULTS)); save(); Sound.off(); toast("Erased"); renderSettings(); renderHome(); }
+function askWipe() {
+  Sound.open();
+  const bits = [
+    ["Your pairing", "Google is disconnected here. Your calendar and mail are untouched — this only forgets the connection."],
+    ["Everything on your schedule", (S.events.length || 0) + " items, plus anything spotted in your email."],
+    ["Your school feeds", S.feeds.length ? S.feeds.map(f => f.name).join(", ") + " would need adding again." : "None connected."],
+    ["Places you've pinned", Object.keys(S.geo).filter(k => S.geo[k] && S.geo[k].pinned).length + " saved by hand, and everything learned about your routes."],
+    ["Your keys and settings", "Client ID, worker address, timing, theme — all cleared."]
+  ];
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>Erase everything?</h2>
+    <div class="note" style="margin:6px 0 0">This clears the app on <b style="color:var(--ink)">this device only</b>. Nothing is deleted from Google, Canvas or anywhere else.</div>
+    <div class="group" style="margin-top:16px">
+      ${bits.map(([t, d]) => `<div class="rowwrap"><div class="row">
+        <div class="row-ico" style="background:var(--coral-soft);color:var(--coral)">${ICONS.car}</div>
+        <div class="row-txt"><div class="row-t">${esc(t)}</div></div></div>
+        <div class="row-s open" style="animation:none">${esc(d)}</div></div>`).join("")}
+    </div>
+    <div class="note" style="margin-top:12px">Your other devices keep their own copy. There's no undo.</div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn ghost" style="flex:1" onclick="closeSheet()">No, keep it</button>
+      <button class="btn" style="flex:1;background:linear-gradient(180deg,#E2685F,#C4463C)" onclick="wipe()">Yes, erase</button>
+    </div>`);
+}
+function wipe() { S = JSON.parse(JSON.stringify(DEFAULTS)); save(); Sound.off(); closeSheet(); toast("Erased"); renderSettings(); renderHome(); }
 function testNotif() { const e = upcoming()[0]; if (!e) { toast("Nothing to announce yet"); return; } delete S.fired[e.id]; deliver(e); }
 
 function addTeam() {
@@ -3314,7 +3598,7 @@ function openSetup() {
     </div>`;
   }).join("");
   const done = STEPS.filter(s => S.setup[s.id]).length;
-  sheet(`<div class="eyebrow" style="margin-top:0">Setup</div><h2>Run this on your own accounts</h2>
+  sheet(`<div class="eyebrow" style="margin-top:0">Setup</div><h2>Setup</h2>
     <div class="note" style="margin:6px 0 14px">${done} of ${STEPS.length} done. Everything lives on accounts you own — your calendar and mail never pass through anyone else's server, including whoever sent you the link.</div>
     ${body}
     <div class="note" style="margin-top:6px">About half an hour. Nothing here costs anything, and nothing asks for a card.</div>
@@ -3524,15 +3808,7 @@ async function initSW() {
     });
     clearAllNotifs();
     SWREG.update().catch(() => {});
-    SWREG.addEventListener("updatefound", () => {
-      const w = SWREG.installing;
-      if (!w) return;
-      w.addEventListener("statechange", () => {
-        if (w.state === "installed" && navigator.serviceWorker.controller) {
-          toast("New version ready — open What's new to load it");
-        }
-      });
-    });
+    SWREG.addEventListener("updatefound", () => { checkForUpdate(); });
   } catch (e) { console.warn("sw", e); }
 }
 
@@ -3582,6 +3858,11 @@ function busy(on) {
   await held(1250);            // never flash past, never linger
   splashNote("");
   dropSplash();
+  pullPush(true);
+  setInterval(() => pullPush(), 90000);
+  setTimeout(() => checkForUpdate(), 3000);
+  setInterval(() => checkForUpdate(), 30 * 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
   if (S.settings.weather) loadWeather();
   if (S.settings.sports) loadSports();
   if (!S.installedAt) S.installedAt = {};
@@ -3607,6 +3888,7 @@ function busy(on) {
   document.addEventListener("visibilitychange", async () => {   // you just opened it
     if (document.hidden) return;
     if (!anyToken() && (S.accounts || []).length) await refreshAll();
+    pullPush(true);
     if (!anyToken()) return;
     pollGmail(true);
     syncGoogle().then(renderHome);
