@@ -432,6 +432,16 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
   opacity:0;transform:translateY(9px);animation:spUp .46s .64s cubic-bezier(.2,.8,.3,1) forwards;
 }
 .sp-word span{color:var(--iris)}
+.sp-note{
+  font-size:12.5px;color:var(--muted);margin-top:-8px;min-height:18px;
+  opacity:0;animation:spUp .5s .8s cubic-bezier(.2,.8,.3,1) forwards;
+}
+#loadbar{
+  position:fixed;top:0;left:0;height:2.5px;width:0;z-index:100;
+  background:var(--iris);border-radius:0 2px 2px 0;
+  transition:width .5s ease, opacity .4s ease;opacity:0;
+}
+#loadbar.on{width:82%;opacity:1;transition:width 7s cubic-bezier(.1,.8,.2,1), opacity .2s}
 @keyframes spFade{to{opacity:1}}
 @keyframes spDraw{to{stroke-dashoffset:77}}
 @keyframes spPop{to{transform:scale(1)}}
@@ -463,6 +473,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
 </head>
 <body>
 
+<div id="loadbar"></div>
 <div id="pairfx" class="hide"></div>
 
 <div id="splash">
@@ -472,6 +483,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
     <circle class="sp-dot" cx="60" cy="60" r="9"/>
   </svg>
   <div class="sp-word">On My <span>Way</span></div>
+  <div class="sp-note" id="sp-note"></div>
 </div>
 
 <div id="app">
@@ -505,7 +517,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.11.1";
+const VERSION = "1.11.2";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -561,7 +573,7 @@ const Sound = (() => {
     }
     const verb = ctx.createConvolver(); verb.buffer = ir;
     const wet = ctx.createGain(); wet.gain.value = 0.15;
-    dry = ctx.createGain(); dry.gain.value = 0.95;
+    dry = ctx.createGain(); dry.gain.value = 1.6;
     room = ctx.createGain();
     room.connect(verb); verb.connect(wet); wet.connect(ctx.destination); dry.connect(ctx.destination);
     const N = Math.floor(ctx.sampleRate * 0.03);
@@ -643,18 +655,18 @@ const Sound = (() => {
   return {
     busy: () => performance.now() - lastPlay < 90,
     prime: () => { try { ac(); } catch (e) {} },
-    tap: () => { const f = climb(); click(0.045, 3400); fm(f, 0.07, 0.1, 2, 1.7, 0, pan()); thump(160, 0.035, 0.055); },
-    back: () => { click(0.03, 1900); fm(C5 * 0.75, 0.06, 0.13, 1.5, 1.1, 0, 0); thump(120, 0.045, 0.07); },
-    open: () => { click(0.035, 2400); fm(C5 * 0.84, 0.065, 0.12, 2, 1.4, 0, -.08); fm(C5 * 1.26, 0.05, 0.13, 2, 1.2, 0.05, .1); thump(150, 0.05, 0.07); },
-    on: () => { click(0.05, 3800); fm(C5, 0.07, 0.1, 3.5, 1.8, 0, -.1); fm(C5 * 1.5, 0.06, 0.15, 3.5, 1.4, 0.055, .12); thump(170, 0.04, 0.05); },
-    off: () => { click(0.03, 1600); fm(C5 * 0.84, 0.06, 0.1, 1.5, 1, 0, .1); fm(C5 * 0.63, 0.05, 0.16, 1.5, 0.8, 0.055, -.1); thump(110, 0.05, 0.09); },
+    tap: () => { const f = climb(); click(0.11, 3400); fm(f, 0.17, 0.1, 2, 1.7, 0, pan()); thump(160, 0.085, 0.055); },
+    back: () => { click(0.075, 1900); fm(C5 * 0.75, 0.145, 0.13, 1.5, 1.1, 0, 0); thump(120, 0.11, 0.07); },
+    open: () => { click(0.085, 2400); fm(C5 * 0.84, 0.155, 0.12, 2, 1.4, 0, -.08); fm(C5 * 1.26, 0.12, 0.13, 2, 1.2, 0.05, .1); thump(150, 0.12, 0.07); },
+    on: () => { click(0.12, 3800); fm(C5, 0.17, 0.1, 3.5, 1.8, 0, -.1); fm(C5 * 1.5, 0.145, 0.15, 3.5, 1.4, 0.055, .12); thump(170, 0.095, 0.05); },
+    off: () => { click(0.075, 1600); fm(C5 * 0.84, 0.145, 0.1, 1.5, 1, 0, .1); fm(C5 * 0.63, 0.12, 0.16, 1.5, 0.8, 0.055, -.1); thump(110, 0.12, 0.09); },
     ping: () => {
-      click(0.05, 4200);
-      fm(C5, 0.085, 0.16, 3.5, 2.2, 0, -.14);
-      fm(C5 * 1.26, 0.075, 0.18, 3.5, 1.9, 0.085, .05);
-      fm(C5 * 1.5, 0.07, 0.3, 3.5, 1.6, 0.17, .16);
-      fm(C5 * 3, 0.028, 0.34, 2, 1, 0.19, 0);
-      thump(180, 0.05, 0.08);
+      click(0.12, 4200);
+      fm(C5, 0.21, 0.16, 3.5, 2.2, 0, -.14);
+      fm(C5 * 1.26, 0.185, 0.18, 3.5, 1.9, 0.085, .05);
+      fm(C5 * 1.5, 0.17, 0.3, 3.5, 1.6, 0.17, .16);
+      fm(C5 * 3, 0.07, 0.34, 2, 1, 0.19, 0);
+      thump(180, 0.12, 0.08);
     }
   };
 })();
@@ -1273,6 +1285,8 @@ const gfetch = async (url, token) => {
 
 async function syncGoogle() {
   if (!anyToken()) return;
+  busy(true);
+  try {
   const keep = S.events.filter(e => e.src !== "google");
   const found = [];
   let stale = null;
@@ -1316,6 +1330,7 @@ async function syncGoogle() {
   await rescheduleAll();
   if (stale) toast(stale + " needs reconnecting");
   scanGmail();
+  } finally { busy(false); }
 }
 function hashStr(s) { let x = 0; for (let i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) | 0; return x; }
 
@@ -1448,6 +1463,8 @@ function parseICS(text, feed) {
 
 async function syncFeeds() {
   if (!S.feeds.length) return;
+  busy(true);
+  try {
   const keep = S.events.filter(e => e.src !== "feed");
   let found = [];
   for (const f of S.feeds) {
@@ -1467,6 +1484,7 @@ async function syncFeeds() {
   S.events = keep.concat(found.filter(e => !S.banned[e.id]));
   save();
   await rescheduleAll();
+  } finally { busy(false); }
 }
 
 function feedSummary(f) {
@@ -2719,8 +2737,7 @@ function renderSettings() {
 
   <div class="eyebrow">This app</div>
   <div class="group">
-    ${row("sun", "How it looks", (S.look.theme === "auto" ? "Automatic" : S.look.theme === "dark" ? "Dark" : "Light") + " · " + (S.look.size === "normal" ? "normal text" : S.look.size + " text"), `<div class="pill no">Edit</div>`, "openLook()")}
-    ${row("clock", "Timing and sound", S.settings.bufferMin + " min of slack · " + humanGap(S.settings.blindLead || 60) + " when there's no place", `<div class="pill no">Edit</div>`, "openTiming()")}
+    ${row("sun", "How it looks", (S.look.theme === "auto" ? "Automatic" : S.look.theme === "dark" ? "Dark" : "Light") + " · " + S.settings.bufferMin + " min of slack", `<div class="pill no">Edit</div>`, "openLook()")}
     ${row("map", "Connection keys", (BUILT_IN.clientId && !S.keys.googleClientId) ? "Built in — nothing for you to set up" : (hasWorker() ? "Worker connected — sign-ins are permanent" : (S.keys.googleClientId ? "Google key saved" : "Paste your Google and Maps keys")), pill(!!S.keys.googleClientId, "Saved", "Add"), "openKeys()")}
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
     ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
@@ -2764,6 +2781,10 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.11.2", "26 Aug 2026", ["Button sounds are properly audible now",
+                             "Nothing you tap can reload the page any more",
+                             "Timing settings moved in with How it looks",
+                             "The opening waits until your schedule is ready, and a thin line across the top shows when it's fetching"]],
   ["1.11.1", "26 Aug 2026", ["Every setup step now has a Show me exactly button with the full detail",
                              "Dark mode, text size, and switches for animation and card labels, under How it looks",
                              "Fixed the page reloading on its own \u2014 the version number in the corner was a hidden button and thumbs kept finding it",
@@ -2890,20 +2911,33 @@ function setLook(k, v) {
 }
 function openLook() {
   Sound.open();
-  const L = S.look;
+  const L = S.look, s = S.settings;
   const pick = (k, opts) => `<div class="tabs" style="margin-top:8px">${opts.map(([val, label]) =>
     `<button class="tab${L[k] === val ? " on" : ""}" onclick="setLook('${k}','${val}')">${label}</button>`).join("")}</div>`;
   sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>How it looks</h2>
+
     <label class="lbl">Theme</label>
     ${pick("theme", [["auto", "Automatic"], ["light", "Light"], ["dark", "Dark"]])}
-    <div class="note" style="margin-top:8px">Automatic follows whatever your phone is set to, so it turns dark at night on its own.</div>
+    <div class="note" style="margin-top:8px">Automatic follows your phone, so it turns dark at night on its own.</div>
+
     <label class="lbl">Text size</label>
     ${pick("size", [["small", "Small"], ["normal", "Normal"], ["big", "Large"]])}
-    <div class="group" style="margin-top:18px">
+
+    <div class="eyebrow">Feel</div>
+    <div class="group">
       ${row("loop", "Animation", L.motion ? "Screens slide and things fade" : "Everything appears at once", sw(L.motion), "setLook('motion'," + (!L.motion) + ")")}
       ${row("bell", "Labels on cards", L.tags ? "Shows meeting, assignment and so on" : "Hidden, for a plainer list", sw(L.tags), "setLook('tags'," + (!L.tags) + ")")}
-      ${row("vol", "Button sounds", S.settings.sounds ? "On" : "Off", sw(S.settings.sounds), "tog('sounds',3)")}
+      ${row("vol", "Button sounds", s.sounds ? "On" : "Off", sw(s.sounds), "tog('sounds',3)")}
     </div>
+
+    <div class="eyebrow">Timing</div>
+    <div class="group">
+      ${row("clock", "Comfort padding", s.bufferMin + " min added to every trip", `<div class="pill no num">${s.bufferMin}m</div>`, "bumpBuffer(3)")}
+      ${row("pin", "No known location", humanGap(s.blindLead || 60) + " of warning when there's no trip to measure", `<div class="pill no num">${humanGap(s.blindLead || 60)}</div>`, "bumpBlind(3)")}
+      ${row("bell", "Homework nudge", "Announced at " + hhmm(s.homeworkHour) + " the day before", `<div class="pill no">${hhmm(s.homeworkHour)}</div>`, "bumpHw(3)")}
+    </div>
+    <div class="note">Quiet hours run ${hhmm(s.quietStart)} to ${hhmm(s.quietEnd)}. An alert landing inside them moves to the edge — later if there's still time, earlier if the deadline is close.</div>
+
     <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
 }
 
@@ -2942,9 +2976,9 @@ function tog(k, inSheet) {
   if (k === "weather" && S.settings.weather) loadWeather();
   if (k === "sports" && S.settings.sports) loadSports();
 }
-function bumpBuffer(inSheet) { const o = [5, 10, 12, 15, 20, 25]; S.settings.bufferMin = o[(o.indexOf(S.settings.bufferMin) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
-function bumpHw(inSheet) { const o = [15, 16, 17, 18, 19, 20]; S.settings.homeworkHour = o[(o.indexOf(S.settings.homeworkHour) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
-function bumpBlind(inSheet) { const o = [30, 45, 60, 90, 120]; S.settings.blindLead = o[(o.indexOf(S.settings.blindLead || 60) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet ? openTiming() : renderSettings(); }
+function bumpBuffer(inSheet) { const o = [5, 10, 12, 15, 20, 25]; S.settings.bufferMin = o[(o.indexOf(S.settings.bufferMin) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet === 3 ? openLook() : inSheet ? openTiming() : renderSettings(); }
+function bumpHw(inSheet) { const o = [15, 16, 17, 18, 19, 20]; S.settings.homeworkHour = o[(o.indexOf(S.settings.homeworkHour) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet === 3 ? openLook() : inSheet ? openTiming() : renderSettings(); }
+function bumpBlind(inSheet) { const o = [30, 45, 60, 90, 120]; S.settings.blindLead = o[(o.indexOf(S.settings.blindLead || 60) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet === 3 ? openLook() : inSheet ? openTiming() : renderSettings(); }
 function saveKeys() { S.keys.googleClientId = $("k_g").value.trim(); S.keys.mapsKey = $("k_m").value.trim(); S.keys.workerUrl = ($("k_w") ? $("k_w").value.trim() : S.keys.workerUrl); save(); Sound.on(); closeSheet(); toast("Keys saved"); renderSettings(); }
 async function forceUpdate() {
   toast("Fetching the newest build");
@@ -3298,7 +3332,14 @@ $("navCal").onclick = () => go(SCREEN === "cal" ? "home" : "cal");
 $("navSet").onclick = () => go(SCREEN === "set" ? "home" : "set");
 $("navNew").onclick = () => { NEWDOT = false; markNewSeen(); openChanges(); };
 document.addEventListener("scroll", () => $("topbar").classList.toggle("scrolled", window.scrollY > 6), { passive: true });
-// bubbles, so a handler's own sound wins and this stays quiet
+/* Belt and braces: no tap anywhere is allowed to count as navigation. */
+document.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (b) { if (!b.type) b.type = "button"; e.preventDefault(); }
+  const a = e.target.closest('a[href^="#"]');
+  if (a) e.preventDefault();
+}, true);
+document.addEventListener("submit", e => e.preventDefault(), true);
 document.addEventListener("click", e => {
   if (e.target.closest(".card,.iconbtn,.btn,.row,.day,.sw") && !Sound.busy()) Sound.tap();
 });
@@ -3306,15 +3347,90 @@ document.addEventListener("click", e => {
 ["pointerdown", "keydown"].forEach(ev =>
   document.addEventListener(ev, () => Sound.prime(), { once: true, passive: true }));
 $("ver").textContent = "v" + VERSION;
+
+let SWREG = null, BG = false, INSTALL = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (SCREEN === "set") renderSettings(); });
+function installApp() {
+  if (INSTALL) { INSTALL.prompt(); INSTALL = null; return; }
+  if (BG) { toast("Already on — alerts arrive with the app closed"); return; }
+  toast("Open your browser menu and choose Add to Home Screen");
+}
+async function forceUpdate() {
+  toast("Fetching the newest build");
+  try {
+    if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
+    if (navigator.serviceWorker) {
+      const rs = await navigator.serviceWorker.getRegistrations();
+      for (const r of rs) await r.unregister();
+    }
+  } catch (e) {}
+  location.replace(location.pathname + "?u=" + Date.now());
+}
+async function initSW() {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+  try {
+    SWREG = await navigator.serviceWorker.register("./sw.js");
+    navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open) openDetail(e.data.open); });
+    if ("periodicSync" in SWREG) {
+      try {
+        const st = await navigator.permissions.query({ name: "periodic-background-sync" });
+        if (st.state === "granted") { await SWREG.periodicSync.register("omw-check", { minInterval: 15 * 60000 }); BG = true; }
+      } catch (e) {}
+    }
+    if (S.paired.notifications) enablePush().then(() => renderSettings());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
+      if (!document.hidden && SWREG) SWREG.update().catch(() => {});
+    });
+    SWREG.update().catch(() => {});
+    SWREG.addEventListener("updatefound", () => {
+      const w = SWREG.installing;
+      if (!w) return;
+      w.addEventListener("statechange", () => {
+        if (w.state === "installed" && navigator.serviceWorker.controller) {
+          toast("New version ready — open What's new to load it");
+        }
+      });
+    });
+  } catch (e) { console.warn("sw", e); }
+}
+
+/** Hold the opening until the app has something to show, but never for long. */
+let splashGone = false;
+function dropSplash(force) {
+  const sp = document.getElementById("splash");
+  if (!sp || splashGone) return;
+  splashGone = true;
+  setTimeout(() => {
+    sp.classList.add("gone");
+    setTimeout(() => { sp.remove(); }, 460);
+  }, force ? 0 : 120);
+}
+function splashNote(t) {
+  const n = document.getElementById("sp-note");
+  if (n) n.textContent = t || "";
+}
+
+/* a hairline that fills while anything is syncing */
+let busyN = 0;
+function busy(on) {
+  busyN = Math.max(0, busyN + (on ? 1 : -1));
+  const b = document.getElementById("loadbar");
+  if (b) b.classList.toggle("on", busyN > 0);
+}
+
 (async function boot() {
   applyLook();
+  const bootStart = Date.now();
+  const held = ms => new Promise(r => setTimeout(r, Math.max(0, ms - (Date.now() - bootStart))));
   try {
     if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)")
       .addEventListener("change", () => { if (S.look.theme === "auto") applyLook(); });
   } catch (e) {}
-  dropSplash();
   if (readSetupLink()) setTimeout(() => toast("Ready — open Settings and tap Pair"), 1500);
   initSW();
+  splashNote("Getting your schedule");
   await catchWorkerReturn();
   if (!S.onboarded) startTutorial(false);
   if (S.paired.location && navigator.permissions) {
@@ -3323,6 +3439,9 @@ $("ver").textContent = "v" + VERSION;
   if (S.paired.maps && S.keys.mapsKey) pairMaps();
   await rescheduleAll();
   renderHome();
+  await held(1250);            // never flash past, never linger
+  splashNote("");
+  dropSplash();
   if (S.settings.weather) loadWeather();
   if (S.settings.sports) loadSports();
   if (!S.installedAt) S.installedAt = {};
