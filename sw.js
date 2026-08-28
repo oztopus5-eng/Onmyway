@@ -1,6 +1,6 @@
 /* On My Way — service worker
    Two jobs: keep the app openable offline, and deliver alerts when the tab is closed. */
-const CACHE = "omw-v1.11.5";
+const CACHE = "omw-v1.11.6";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -87,14 +87,30 @@ async function markSent(ids) {
     });
   }
 }
+/** Anything you've already had time to see gets taken down. */
+async function sweep() {
+  const now = Date.now();
+  let closed = 0;
+  for (const n of await self.registration.getNotifications()) {
+    const d = n.data || {};
+    if (d.expire && now > d.expire) { n.close(); closed++; }
+  }
+  return closed;
+}
+
 async function check() {
+  await sweep();
   const items = await due();
   if (!items.length) return 0;
   for (const i of items) {
+    // gone by the time the thing itself starts, or after the set window
+    const life = (i.life || 10) * 60000;
+    const expire = Math.min(i.start || (Date.now() + life), Date.now() + life);
     await self.registration.showNotification(i.title, {
-      body: bodyNow(i), tag: i.id, data: { id: i.id },
+      body: bodyNow(i), tag: i.id,
+      data: { id: i.id, expire: Math.max(expire, Date.now() + 45000) },
       icon: "./icon-192.png", badge: "./icon-192.png",
-      requireInteraction: !!i.urgent, silent: false
+      requireInteraction: false, silent: false
     });
   }
   await markSent(items.map(i => i.id));
@@ -103,7 +119,16 @@ async function check() {
 
 self.addEventListener("periodicsync", e => { if (e.tag === "omw-check") e.waitUntil(check()); });
 self.addEventListener("sync", e => { if (e.tag === "omw-check") e.waitUntil(check()); });
-self.addEventListener("message", e => { if (e.data === "check") e.waitUntil(check()); });
+self.addEventListener("message", e => {
+  if (e.data === "check") e.waitUntil(check());
+  if (e.data === "sweep") e.waitUntil(sweep());
+  if (e.data && e.data.clear) e.waitUntil((async () => {
+    for (const n of await self.registration.getNotifications({ tag: e.data.clear })) n.close();
+  })());
+  if (e.data === "clearall") e.waitUntil((async () => {
+    for (const n of await self.registration.getNotifications()) n.close();
+  })());
+});
 /**
  * The push carries nothing. It's only a nudge to wake up and look at the
  * queue we already stored, which is why none of your schedule is ever

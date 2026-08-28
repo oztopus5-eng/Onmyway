@@ -575,7 +575,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.11.5";
+const VERSION = "1.11.6";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -740,6 +740,7 @@ const DEFAULTS = {
     quietEnd: 7,            // or before 7am
     homeworkHour: 18,       // aim assignment alerts for 6pm the day before
     blindLead: 60,          // warning for anything we can't measure a trip to
+    alertLife: 10,          // minutes an alert stays on screen before clearing itself
     sports: false, weather: false, traffic: false, routines: true, emailScan: true, autoAccept: true,
     weatherMorning: true, weatherSevere: true,
     sportsPre: true, sportsScore: false, sportsFinal: true
@@ -1539,7 +1540,11 @@ async function syncFeeds() {
       found = found.concat(items);
     } catch (e) { f.error = "couldn't reach it"; }
   }
-  S.events = keep.concat(found.filter(e => !S.banned[e.id]));
+  const fresh = found.filter(e => !S.banned[e.id]);
+  const gone = S.events.filter(e => e.src === "feed" && !fresh.some(f => f.id === e.id));
+  gone.forEach(e => { clearNotif(e.id); delete S.fired[e.id]; });
+  if (gone.length) toast(gone.length === 1 ? "One item cleared from " + (feedOf(gone[0]) || {}).name : gone.length + " items cleared");
+  S.events = keep.concat(fresh);
   save();
   await rescheduleAll();
   } finally { busy(false); }
@@ -2062,6 +2067,7 @@ function queueToIDB() {
         id: e.id, title: t.title, body: t.body,
         at: new Date(e.alertAt).getTime(),
         start: new Date(e.start).getTime(),
+        life: S.settings.alertLife || 10,
         urgent: e.kind !== "assignment"
       };
     });
@@ -2294,8 +2300,22 @@ function openDetail(id) {
     </div>`);
 }
 /** Finished it. Gone, no confirmation, never comes back on a sync. */
+function clearNotif(id) {
+  try {
+    if (SWREG && SWREG.active) SWREG.active.postMessage({ clear: id });
+    if (SWREG && SWREG.getNotifications) SWREG.getNotifications({ tag: id }).then(ns => ns.forEach(n => n.close()));
+  } catch (e) {}
+}
+function clearAllNotifs() {
+  try {
+    if (SWREG && SWREG.active) SWREG.active.postMessage("clearall");
+    if (SWREG && SWREG.getNotifications) SWREG.getNotifications().then(ns => ns.forEach(n => n.close()));
+  } catch (e) {}
+}
+
 function markDone(id) {
   const e = findEv(id);
+  clearNotif(id);
   S.banned[id] = Date.now();
   S.events = S.events.filter(x => x.id !== id);
   S.suggestions = S.suggestions.filter(x => x.id !== id);
@@ -2317,6 +2337,7 @@ function askRemove(id) {
 }
 function removeEvent(id) {
   S.banned[id] = Date.now();                 // the part that was missing
+  clearNotif(id);
   S.events = S.events.filter(e => e.id !== id);
   S.suggestions = S.suggestions.filter(e => e.id !== id);
   S.routines = S.routines.filter(r => !id.startsWith("r_" + r.id + "_"));
@@ -2860,6 +2881,9 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.11.6", "26 Aug 2026", ["Alerts clear themselves after a while, or the moment the thing starts",
+                             "Opening the app takes down anything still sitting there",
+                             "Marking something done, or it disappearing from your school feed, clears its alert too"]],
   ["1.11.5", "26 Aug 2026", ["The tutorial now shows exactly how to add it to your home screen, and where to go to connect things",
                              "A pairing screen that can't finish now gives up on its own, and you can tap to stop it"]],
   ["1.11.4", "26 Aug 2026", ["Dark mode has a dark background now — the page behind the app was still white"]],
@@ -3020,6 +3044,7 @@ function openLook() {
       ${row("clock", "Comfort padding", s.bufferMin + " min added to every trip", `<div class="pill no num">${s.bufferMin}m</div>`, "bumpBuffer(3)")}
       ${row("pin", "No known location", humanGap(s.blindLead || 60) + " of warning when there's no trip to measure", `<div class="pill no num">${humanGap(s.blindLead || 60)}</div>`, "bumpBlind(3)")}
       ${row("bell", "Homework nudge", "Announced at " + hhmm(s.homeworkHour) + " the day before", `<div class="pill no">${hhmm(s.homeworkHour)}</div>`, "bumpHw(3)")}
+      ${row("bell", "Alerts clear after", (s.alertLife || 10) + " minutes, or when the thing starts", `<div class="pill no num">${s.alertLife || 10}m</div>`, "bumpLife(3)")}
     </div>
     <div class="note">Quiet hours run ${hhmm(s.quietStart)} to ${hhmm(s.quietEnd)}. An alert landing inside them moves to the edge — later if there's still time, earlier if the deadline is close.</div>
 
@@ -3064,6 +3089,7 @@ function tog(k, inSheet) {
 function bumpBuffer(inSheet) { const o = [5, 10, 12, 15, 20, 25]; S.settings.bufferMin = o[(o.indexOf(S.settings.bufferMin) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet === 3 ? openLook() : inSheet ? openTiming() : renderSettings(); }
 function bumpHw(inSheet) { const o = [15, 16, 17, 18, 19, 20]; S.settings.homeworkHour = o[(o.indexOf(S.settings.homeworkHour) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet === 3 ? openLook() : inSheet ? openTiming() : renderSettings(); }
 function bumpBlind(inSheet) { const o = [30, 45, 60, 90, 120]; S.settings.blindLead = o[(o.indexOf(S.settings.blindLead || 60) + 1) % o.length]; save(); Sound.tap(); rescheduleAll().then(renderHome); inSheet === 3 ? openLook() : inSheet ? openTiming() : renderSettings(); }
+function bumpLife(inSheet) { const o = [2, 5, 10, 20, 45]; S.settings.alertLife = o[(o.indexOf(S.settings.alertLife || 10) + 1) % o.length]; save(); Sound.tap(); queueToIDB(); inSheet === 3 ? openLook() : renderSettings(); }
 function saveKeys() { S.keys.googleClientId = $("k_g").value.trim(); S.keys.mapsKey = $("k_m").value.trim(); S.keys.workerUrl = ($("k_w") ? $("k_w").value.trim() : S.keys.workerUrl); save(); Sound.on(); closeSheet(); toast("Keys saved"); renderSettings(); }
 async function forceUpdate() {
   toast("Fetching the newest build");
@@ -3491,8 +3517,12 @@ async function initSW() {
     if (S.paired.notifications) enablePush().then(() => renderSettings());
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
-      if (!document.hidden && SWREG) SWREG.update().catch(() => {});
+      if (!document.hidden && SWREG) {
+        SWREG.update().catch(() => {});
+        clearAllNotifs();                      // you're looking at it, so take them down
+      }
     });
+    clearAllNotifs();
     SWREG.update().catch(() => {});
     SWREG.addEventListener("updatefound", () => {
       const w = SWREG.installing;
