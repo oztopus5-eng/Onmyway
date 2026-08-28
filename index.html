@@ -116,6 +116,14 @@ h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;lett
 .hero.soon .fill{stroke:var(--amber)} .hero.soon .leave-time{color:var(--amber)} .hero.soon .hero-kind{color:var(--amber)}
 
 /* ---------- timeline list ---------- */
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:4px;margin-top:14px;box-shadow:var(--shadow)}
+.tab{
+  flex:1;padding:9px 8px;border-radius:11px;font-size:14px;font-weight:600;color:var(--muted);
+  transition:background .2s,color .2s;text-align:center;
+}
+.tab.on{background:var(--iris);color:#fff}
+.tab .n{font-size:11px;opacity:.7;margin-left:5px;font-variant-numeric:tabular-nums}
+
 .tl{position:relative;padding-left:66px}
 .tl::before{content:"";position:absolute;left:57px;top:6px;bottom:16px;width:1.5px;background:var(--line)}
 .item{position:relative;margin-bottom:10px;animation:rise .3s both}
@@ -132,6 +140,13 @@ h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;lett
   transition:transform .12s ease;width:100%;text-align:left;display:block;
 }
 .card:active{transform:scale(.985)}
+.donebtn{
+  position:absolute;top:11px;right:11px;width:30px;height:30px;border-radius:9px;
+  background:var(--mint-soft);color:var(--mint);display:grid;place-items:center;z-index:2;
+  transition:transform .12s,background .18s;
+}
+.donebtn svg{width:16px;height:16px}
+.donebtn:active{transform:scale(.88);background:var(--mint);color:#fff}
 .card-t{font-weight:600;font-size:15.5px;line-height:1.25;margin-bottom:3px;overflow-wrap:anywhere}
 .card-s{font-size:12.5px;color:var(--muted);line-height:1.35}
 .tag{
@@ -360,6 +375,30 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 #mapfull{height:66vh;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--line);margin-top:12px}
 .pinhint{font-size:12px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.4}
 
+/* ---------- setup walkthrough ---------- */
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.step.done{border-color:var(--mint);background:var(--mint-soft)}
+.step-h{display:flex;align-items:center;gap:11px}
+.step-n{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--iris-soft);color:var(--iris);font-weight:800;font-size:13px}
+.step.done .step-n{background:var(--mint);color:#fff}
+.step-t{font-weight:600;font-size:15px;flex:1;line-height:1.25}
+.step-b{font-size:13.5px;color:var(--muted);line-height:1.55;margin-top:9px}
+.step-b b{color:var(--ink);font-weight:600}
+.copyrow{display:flex;align-items:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin-top:9px}
+.copyrow code{flex:1;font:12px/1.45 ui-monospace,Menlo,monospace;word-break:break-all;color:var(--ink);white-space:pre-wrap}
+.copyrow button{flex:none;font-size:11.5px;font-weight:700;color:var(--iris);background:var(--iris-soft);padding:6px 10px;border-radius:8px}
+.caplbl{font-size:11px;color:var(--muted);margin-top:4px}
+.step-go{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
+.step-go a,.step-go button{font-size:13px;font-weight:600;padding:9px 14px;border-radius:11px;text-decoration:none;background:var(--iris-soft);color:var(--iris)}
+.step-go .check{background:var(--iris);color:#fff}
+.step-d{margin-top:12px;border-top:1px solid var(--line);padding-top:11px}
+.dline{display:flex;gap:10px;font-size:13.5px;line-height:1.55;color:var(--muted);padding:6px 0}
+.dline b{color:var(--ink);font-weight:600}
+.dnum{flex:none;width:19px;height:19px;border-radius:50%;background:var(--iris-soft);color:var(--iris);font-size:10.5px;font-weight:800;display:grid;place-items:center;margin-top:2px}
+.step-msg{font-size:12.5px;margin-top:10px;line-height:1.5}
+.step-msg.ok{color:var(--mint)}
+.step-msg.bad{color:var(--coral)}
+
 /* ---------- toast + version ---------- */
 #toast{
   position:fixed;left:50%;bottom:calc(26px + var(--safe-b));transform:translate(-50%,90px);
@@ -370,10 +409,8 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 #ver{
   position:fixed;right:9px;bottom:calc(7px + var(--safe-b));z-index:70;
   font-size:10px;font-weight:600;letter-spacing:.05em;color:#C6AEAB;
-  font-variant-numeric:tabular-nums;padding:6px 8px;cursor:pointer;
-  -webkit-user-select:none;user-select:none;
+  font-variant-numeric:tabular-nums;pointer-events:none;
 }
-#ver:active{color:var(--iris)}
 /* ---------- opening ---------- */
 #splash{
   position:fixed;inset:0;z-index:200;background:var(--paper);
@@ -399,6 +436,27 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 @keyframes spDraw{to{stroke-dashoffset:77}}
 @keyframes spPop{to{transform:scale(1)}}
 @keyframes spUp{to{opacity:1;transform:none}}
+
+html[data-theme="dark"]{
+  --paper:#171214; --card:#211A1D; --ink:#F3E9E7; --muted:#A79598; --line:#33272B;
+  --iris:#E5817A; --iris-soft:#3B2729; --mint:#7FBBA3; --mint-soft:#22322C;
+  --amber:#DDA76A; --amber-soft:#332818; --coral:#E9736A; --coral-soft:#3B2422;
+  --shadow:0 1px 2px rgba(0,0,0,.30), 0 8px 24px rgba(0,0,0,.28);
+  --shadow-lg:0 2px 6px rgba(0,0,0,.34), 0 20px 48px rgba(0,0,0,.42);
+}
+html[data-theme="dark"] .topbar{background:rgba(23,18,20,.86)}
+html[data-theme="dark"] .day.dim{color:#5E4C50}
+html[data-theme="dark"] #ver{color:#5E4C50}
+html[data-theme="dark"] .t-game{background:#2C2226;color:var(--muted)}
+html[data-theme="dark"] .pill.quiet{background:#2C2226}
+html[data-theme="dark"] .sw{background:#3B2E32}
+html[data-theme="dark"] #toast{background:#F3E9E7;color:#171214}
+html[data-theme="dark"] .leaflet-tile{filter:brightness(.75) contrast(1.06)}
+html[data-theme="dark"] .rel-d{color:#6B565A}
+html[data-theme="dark"] .copyrow{background:#171214}
+html[data-size="big"]{font-size:17.5px}
+html[data-size="small"]{font-size:14.5px}
+html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!important}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
@@ -447,7 +505,7 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.10.5";
+const VERSION = "1.11.1";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -617,6 +675,7 @@ const DEFAULTS = {
     sportsPre: true, sportsScore: false, sportsFinal: true
   },
   keys: { googleClientId: "", mapsKey: "", workerUrl: "" },
+  look: { theme: "auto", size: "normal", motion: true, tags: true },
   home: null,               // {lat,lng} learned or set
   geo: {},                  // geocode cache, so we ask once per place
   suggestions: [],          // parsed out of email, waiting on your yes
@@ -626,6 +685,7 @@ const DEFAULTS = {
   seenVersion: null,        // last version whose notes you were shown
   installedAt: {},          // version -> when it first ran here
   readVersion: null,        // newest notes you've actually opened
+  setup: {},                // which setup steps you've got past
   feeds: [],                // {id,name,url,kind} calendar feeds from school portals etc
   teams: [],                // [{league,id,name}]
   events: [],               // unified event objects
@@ -638,7 +698,7 @@ let S = Object.assign({}, DEFAULTS, Store.get("omw", {}));
 S.settings = Object.assign({}, DEFAULTS.settings, S.settings || {});
 S.keys = Object.assign({}, DEFAULTS.keys, S.keys || {});
 S.paired = Object.assign({}, DEFAULTS.paired, S.paired || {});
-S.geo = S.geo || {}; S.suggestions = S.suggestions || []; S.vault = S.vault || []; S.banned = S.banned || {}; S.feeds = S.feeds || [];
+S.setup = S.setup || {}; S.look = Object.assign({ theme: "auto", size: "normal", motion: true, tags: true }, S.look || {}); S.geo = S.geo || {}; S.suggestions = S.suggestions || []; S.vault = S.vault || []; S.banned = S.banned || {}; S.feeds = S.feeds || [];
 const save = () => Store.set("omw", S);
 
 /* ---------- time helpers ---------- */
@@ -2011,8 +2071,14 @@ function routineEvents() {
   return out;
 }
 
+let TAB = "general";
+const isSchool = e => e.src === "feed";
+
 function renderHome() {
-  const list = upcoming(), next = list[0];
+  const all = upcoming();
+  const schoolOn = S.feeds.length > 0 && all.some(isSchool);
+  if (!schoolOn) TAB = "general";
+  const list = all, next = list[0];
   let h = "";
 
   if (!next) {
@@ -2079,20 +2145,33 @@ function renderHome() {
     h += `<button class="btn ghost full" style="margin-top:11px" onclick="openMapAll()">See everything on a map</button>`;
   }
 
-  const rest = list.slice(1, 12);
+  const pool = list.slice(1);
+  const gen = pool.filter(e => !isSchool(e)), sch = pool.filter(isSchool);
+  if (schoolOn) {
+    h += `<div class="tabs">
+      <button class="tab${TAB === "general" ? " on" : ""}" onclick="setTab('general')">General<span class="n">${gen.length}</span></button>
+      <button class="tab${TAB === "school" ? " on" : ""}" onclick="setTab('school')">School<span class="n">${sch.length}</span></button>
+    </div>`;
+  }
+  const rest = (schoolOn ? (TAB === "school" ? sch : gen) : pool).slice(0, 12);
+  if (!rest.length && schoolOn) {
+    h += `<div class="empty" style="margin-top:12px"><p style="margin:0">Nothing under ${TAB === "school" ? "school" : "general"} right now.</p></div>`;
+  }
   if (rest.length) {
     h += `<div class="eyebrow">Later</div><div class="tl">`;
-    let lastDay = fmtDay(next.start);
+    let lastDay = "";
     rest.forEach((e, i) => {
       const d = fmtDay(e.start), show = d !== lastDay; lastDay = d;
       h += `<div class="item" style="animation-delay:${i * 32}ms">
         <div class="item-time num">${fmtTime(e.start)}${show ? `<small>${d}</small>` : ""}</div>
         <div class="dot"></div>
-        <button class="card" onclick="openDetail('${e.id}')">
-          <div class="card-t">${esc(e.title)}</div>
+        <div class="card" style="position:relative">
+        ${e.kind === "assignment" ? `<button class="donebtn" onclick="event.stopPropagation();markDone('${e.id}')" aria-label="Mark done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L19 7"/></svg></button>` : ""}
+        <button style="all:unset;display:block;width:100%;cursor:pointer" onclick="openDetail('${e.id}')">
+          <div class="card-t" style="padding-right:${e.kind === "assignment" ? "34px" : "0"}">${esc(e.title)}</div>
           <div class="card-s">${e.place && e.place.name ? esc(e.place.name) : (e.course ? esc(e.course) : (e.who ? "with " + esc(e.who) : "No location"))}</div>
-          <span class="tag t-${e.kind}">${e.kind}</span>${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}${!alertsOn(e) ? `<span class="tag t-game" style="margin-left:6px">silent</span>` : ""}
-        </button></div>`;
+          ${S.look.tags ? `<span class="tag t-${e.kind}">${e.kind}</span>` : ""}${e.auto ? `<span class="tag t-routine" style="margin-left:6px">from your reply</span>` : ""}${!alertsOn(e) ? `<span class="tag t-game" style="margin-left:6px">silent</span>` : ""}
+        </button></div></div>`;
     });
     h += `</div>`;
   }
@@ -2133,10 +2212,22 @@ function openDetail(id) {
       <div style="font-size:14px;line-height:1.4">${esc(t.body)}</div>
     </div>
     <div style="display:flex;gap:10px;margin-top:16px">
-      ${canRoute ? `<a class="btn" style="flex:1;text-decoration:none" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">Directions</a>` : ""}
+      ${e.kind === "assignment" ? `<button class="btn" style="flex:1" onclick="markDone('${e.id}')">Mark done</button>` : ""}
+      ${canRoute ? `<a class="btn${e.kind === "assignment" ? " ghost" : ""}" style="flex:1;text-decoration:none" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">Directions</a>` : ""}
       <button class="btn ghost" style="flex:1" onclick="askRemove('${e.id}')">Remove</button>
     </div>`);
 }
+/** Finished it. Gone, no confirmation, never comes back on a sync. */
+function markDone(id) {
+  const e = findEv(id);
+  S.banned[id] = Date.now();
+  S.events = S.events.filter(x => x.id !== id);
+  S.suggestions = S.suggestions.filter(x => x.id !== id);
+  save(); Sound.on(); closeSheet();
+  toast(e ? "Done — " + e.title : "Done");
+  queueToIDB(); renderHome(); if (SCREEN === "cal") renderCal();
+}
+
 function askRemove(id) {
   const e = findEv(id); if (!e) return;
   Sound.open();
@@ -2500,6 +2591,7 @@ function renderCal() {
     </div>
     <div style="height:26px"></div>`;
 }
+function setTab(t) { TAB = t; Sound.tap(); renderHome(); }
 function pickDay(iso) { SEL = new Date(iso); Sound.tap(); renderCal(); }
 function shiftMonth(n) {
   CAL.setMonth(CAL.getMonth() + n);
@@ -2627,11 +2719,12 @@ function renderSettings() {
 
   <div class="eyebrow">This app</div>
   <div class="group">
+    ${row("sun", "How it looks", (S.look.theme === "auto" ? "Automatic" : S.look.theme === "dark" ? "Dark" : "Light") + " · " + (S.look.size === "normal" ? "normal text" : S.look.size + " text"), `<div class="pill no">Edit</div>`, "openLook()")}
     ${row("clock", "Timing and sound", S.settings.bufferMin + " min of slack · " + humanGap(S.settings.blindLead || 60) + " when there's no place", `<div class="pill no">Edit</div>`, "openTiming()")}
     ${row("map", "Connection keys", (BUILT_IN.clientId && !S.keys.googleClientId) ? "Built in — nothing for you to set up" : (hasWorker() ? "Worker connected — sign-ins are permanent" : (S.keys.googleClientId ? "Google key saved" : "Paste your Google and Maps keys")), pill(!!S.keys.googleClientId, "Saved", "Add"), "openKeys()")}
     ${row("bell", "What the scan found", SCANLOG.at ? "Last checked " + fmtTime(SCANLOG.at) : "Not run yet", `<div class="pill no">Open</div>`, "openScanLog()")}
-    ${row("loop", "Sample day", "See how it behaves before pairing anything", `<div class="pill no">Load</div>`, "loadDemo()")}
     ${row("bell", "Replay the tutorial", "Four screens, about a minute", `<div class="pill no">Open</div>`, "startTutorial(true)")}
+    ${row("clock", "Set this up as your own", STEPS.filter(s => S.setup[s.id]).length + " of " + STEPS.length + " steps done", `<div class="pill no">Open</div>`, "openSetup()")}
     ${row("google", "Add device", clientId() ? "One link that sets up your phone or laptop" : "Pair Google first, then this makes the link", `<div class="pill no">Link</div>`, "shareSetup()")}
     ${row("car", "Erase everything", "Clears all events, keys and pairings", `<div class="pill no" style="color:var(--coral);background:var(--coral-soft)">Erase</div>`, "wipe()")}
   </div>
@@ -2671,6 +2764,13 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.11.1", "26 Aug 2026", ["Every setup step now has a Show me exactly button with the full detail",
+                             "Dark mode, text size, and switches for animation and card labels, under How it looks",
+                             "Fixed the page reloading on its own \u2014 the version number in the corner was a hidden button and thumbs kept finding it",
+                             "Removed the sample day"]],
+  ["1.11.0", "26 Aug 2026", ["A setup walkthrough that checks each step as you go, so anyone can run this on their own accounts"]],
+  ["1.10.6", "26 Aug 2026", ["General and School tabs on the home screen, once you've connected something from school",
+                             "A tick on every assignment — one tap when it's done and it's gone for good"]],
   ["1.10.5", "26 Aug 2026", ["What's new has its own button in the top bar, with a dot when there's something unread"]],
   ["1.10.4", "26 Aug 2026", ["Release dates on these notes"]],
   ["1.10.3", "26 Aug 2026", ["Anything taken away in an update now shows a red minus instead of a dot"]],
@@ -2736,6 +2836,7 @@ function openChanges(fresh) {
     <div class="note" style="margin:6px 0 18px">${fresh ? "Here's what changed. Scroll up for everything before it." : "Newest at the bottom. Scroll up for the history."}</div>
     ${rows}
     <button class="btn full" style="margin-top:28px" onclick="closeSheet()">${fresh ? "Got it" : "Close"}</button>
+    <button class="btn ghost full" style="margin-top:10px" onclick="forceUpdate()">Reload from source</button>
     <div style="height:10px"></div>`);
   const sh = document.querySelector(".sheet");
   if (sh) setTimeout(() => { sh.scrollTop = sh.scrollHeight; }, 40);
@@ -2770,6 +2871,42 @@ async function notifRow() {
   testPush();
 }
 
+/* ---------- how it looks ---------- */
+function applyLook() {
+  const L = S.look, r = document.documentElement;
+  const dark = L.theme === "dark" || (L.theme === "auto" &&
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  r.setAttribute("data-theme", dark ? "dark" : "light");
+  r.setAttribute("data-size", L.size);
+  r.classList.toggle("nomotion", !L.motion);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#171214" : "#FCF7F6");
+}
+function setLook(k, v) {
+  S.look[k] = v; save();
+  applyLook();
+  (v === false ? Sound.off : Sound.on)();
+  openLook(); renderHome();
+}
+function openLook() {
+  Sound.open();
+  const L = S.look;
+  const pick = (k, opts) => `<div class="tabs" style="margin-top:8px">${opts.map(([val, label]) =>
+    `<button class="tab${L[k] === val ? " on" : ""}" onclick="setLook('${k}','${val}')">${label}</button>`).join("")}</div>`;
+  sheet(`<div class="eyebrow" style="margin-top:0">This app</div><h2>How it looks</h2>
+    <label class="lbl">Theme</label>
+    ${pick("theme", [["auto", "Automatic"], ["light", "Light"], ["dark", "Dark"]])}
+    <div class="note" style="margin-top:8px">Automatic follows whatever your phone is set to, so it turns dark at night on its own.</div>
+    <label class="lbl">Text size</label>
+    ${pick("size", [["small", "Small"], ["normal", "Normal"], ["big", "Large"]])}
+    <div class="group" style="margin-top:18px">
+      ${row("loop", "Animation", L.motion ? "Screens slide and things fade" : "Everything appears at once", sw(L.motion), "setLook('motion'," + (!L.motion) + ")")}
+      ${row("bell", "Labels on cards", L.tags ? "Shows meeting, assignment and so on" : "Hidden, for a plainer list", sw(L.tags), "setLook('tags'," + (!L.tags) + ")")}
+      ${row("vol", "Button sounds", S.settings.sounds ? "On" : "Off", sw(S.settings.sounds), "tog('sounds',3)")}
+    </div>
+    <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
+}
+
 function openTiming() {
   Sound.open();
   const s = S.settings;
@@ -2778,7 +2915,6 @@ function openTiming() {
       ${row("clock", "Comfort padding", s.bufferMin + " min added to every trip", `<div class="pill no num">${s.bufferMin}m</div>`, "bumpBuffer(1)")}
       ${row("bell", "Homework nudge", "Announced at " + hhmm(s.homeworkHour) + " the day before", `<div class="pill no">${hhmm(s.homeworkHour)}</div>`, "bumpHw(1)")}
       ${row("pin", "No known location", humanGap(s.blindLead || 60) + " of warning when there's no trip to measure", `<div class="pill no num">${humanGap(s.blindLead || 60)}</div>`, "bumpBlind(1)")}
-      ${row("vol", "Button sounds", s.sounds ? "On" : "Off", sw(s.sounds), "tog('sounds',1)")}
     </div>
     <div class="note">Quiet hours run ${hhmm(s.quietStart)} to ${hhmm(s.quietEnd)}. An alert landing inside them moves to the edge — later if there's still time, earlier if the deadline is close.</div>
     <button class="btn full" style="margin-top:18px" onclick="closeSheet()">Done</button>`);
@@ -2799,6 +2935,7 @@ function openKeys() {
 function tog(k, inSheet) {
   S.settings[k] = !S.settings[k]; save();
   S.settings[k] ? Sound.on() : Sound.off();
+  if (inSheet === 3) { openLook(); return; }
   if (inSheet === 2) { openEmailScan(); return; }
   if (inSheet) { openTiming(); return; }
   renderSettings(); renderHome();
@@ -2881,6 +3018,182 @@ async function loadDemo() {
   if (!S.home) S.home = { lat: 37.7749, lng: -122.4194 };
   S.fired = {};
   await rescheduleAll(); Sound.on(); toast("Sample day loaded"); go("home");
+}
+
+/* ============================================================
+   SETUP — everything a new person has to do, checked as they go.
+   Each step tests itself, so nobody discovers three steps later
+   that something was wrong.
+   ============================================================ */
+const SCOPELIST = [
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/classroom.courses.readonly",
+  "https://www.googleapis.com/auth/classroom.coursework.me.readonly"
+].join("\n");
+
+const STEPDETAIL = {"cf": ["Open dash.cloudflare.com and sign up. Email and password \u2014 it never asks for a card.", "In the left sidebar tap <b>Compute (Workers)</b>.", "Tap <b>Create</b>, then <b>Start with Hello World!</b> \u2014 not the GitHub or GitLab options.", "Name it <b>onmyway-auth</b> and tap <b>Deploy</b>. It takes a few seconds.", "Tap <b>Edit code</b>. Tap into the editor, select everything, delete it.", "Paste in the worker code you were sent, then tap <b>Deploy</b> at the top right.", "Find the address on the worker's page \u2014 it ends in <b>.workers.dev</b>. Copy it.", "Come back here, open Connection keys, and paste it into <b>Auth worker URL</b>. No slash on the end, and no /callback."], "kv": ["In Cloudflare's left sidebar open <b>Storage and Databases</b>, then <b>KV</b>.", "Tap <b>Create</b> \u2014 it may say Create instance. Name it <b>omw</b> in lowercase.", "Go back to your worker: Compute (Workers), then onmyway-auth.", "Open <b>Settings</b>, scroll to <b>Bindings</b>, tap <b>Add</b>.", "Choose <b>KV namespace</b>.", "Variable name must be <b>OMW</b> in capitals. The code looks for that exact word.", "Pick the omw namespace you just made, save, then <b>Deploy</b>."], "gc": ["Open console.cloud.google.com and sign in.", "If it pushes a free trial or asks for a card, dismiss it. You need neither.", "It may say access is blocked until you turn on 2-step verification. Do that \u2014 it's a one-time thing on your Google account.", "At the top, open the project dropdown and choose <b>New Project</b>. Name it and create it.", "Check the project name at the top says yours before carrying on. Enabling things on the wrong project is the usual mistake.", "Go to <b>APIs and Services</b>, then <b>Library</b>.", "Search <b>Google Calendar API</b>, tap the result, tap <b>Enable</b>.", "Go back and do the same for <b>Gmail API</b> and <b>Google Classroom API</b>."], "consent": ["In Google Cloud open <b>Google Auth Platform</b> \u2014 search for it at the top if you can't find it.", "Choose <b>External</b> for user type. Internal only works for schools with Workspace admin access.", "Fill in an app name and your email where asked.", "Open <b>Audience</b> in the sidebar. Under <b>Test users</b> tap Add users and enter your own Gmail address. Without this Google refuses to let you in.", "Open <b>Data Access</b> in the sidebar.", "Tap <b>Add or remove scopes</b>. A panel slides out with a long list \u2014 ignore all of it.", "Scroll to the very bottom of that panel, to the box for adding scopes by hand.", "Paste the four scopes from the Copy button above, tap <b>Add to table</b>, then <b>Update</b>, then <b>Save</b>."], "oauth": ["In Google Cloud go to <b>Credentials</b>.", "Tap <b>Create credentials</b>, then <b>OAuth client ID</b>.", "For Application type choose <b>Web application</b>. Not iOS \u2014 this is a web page, even though it runs like an app.", "Under <b>Authorised JavaScript origins</b> tap Add URI and paste the first value above. Origin only: no path, no slash on the end.", "Under <b>Authorised redirect URIs</b> tap Add URI and paste the second value, the one ending in /callback.", "Tap <b>Create</b>. A box appears with your client ID.", "Copy it and paste it into Connection keys here.", "Watch out: Safari sometimes adds http:// to the front when you paste. If it does, delete that part. It has to start with numbers."], "vars": ["You need the client secret first. In Google Cloud, Credentials, tap your OAuth client.", "Look for <b>Client secrets</b> on the right. Google no longer shows old ones, so if it's hidden tap <b>Add secret</b> and copy the new one straight away \u2014 it's shown once and never again.", "In Cloudflare open your worker, then <b>Settings</b>, then <b>Variables</b>.", "Add <b>GOOGLE_CLIENT_ID</b> as Text, using the Copy button above.", "Add <b>GOOGLE_CLIENT_SECRET</b> as a <b>Secret</b>, pasting what you copied from Google.", "Add <b>SECRET</b> as a <b>Secret</b>. Use the value above or invent your own \u2014 just never change it later, or every sign-in breaks at once.", "Add <b>ALLOWED_ORIGIN</b> as Text, using the Copy button above.", "Tap <b>Deploy</b>. Variables do nothing until you redeploy."], "push": ["Open your worker address with <b>/vapid</b> on the end, in a browser tab.", "It shows two values. Do not reload that page \u2014 it makes brand new keys every visit, and only the last set you save will work.", "In Cloudflare, worker, Settings, Variables: add <b>VAPID_PUBLIC</b> as Text with the first value.", "Add <b>VAPID_PRIVATE_JWK</b> as a <b>Secret</b> with the second value \u2014 the long one that starts with a curly bracket.", "Add <b>VAPID_SUBJECT</b> as Text. Use the Copy button above but put your own email in.", "Tap <b>Deploy</b>.", "Still in Settings, find <b>Triggers</b>, then <b>Cron Triggers</b>, then Add.", "Paste the five asterisks from above. That's the every-minute check that actually sends your alerts."], "pair": ["Open Connection keys here and check both fields are filled: the client ID and the worker address.", "Tap <b>Save keys</b>.", "Go to Settings and tap <b>Google</b>. You'll be handed to Google's sign-in.", "Sign in with the same account you added as a test user.", "You'll see a warning that Google hasn't verified this app. That's expected \u2014 it's your own project, and verification is only needed for public apps. Tap <b>Advanced</b>, then the <b>Go to</b> link underneath.", "Tap <b>Select all</b> on the permissions screen, then <b>Continue</b>.", "Back in the app, tap <b>Location</b> and allow it. Without location there's nothing to measure a departure from."], "home": ["Open the app in <b>Safari</b>. Chrome on iPhone can't do this step.", "Tap the <b>Share</b> button \u2014 the square with an arrow pointing up.", "Scroll that menu down, tap <b>Add to Home Screen</b>, then <b>Add</b>.", "Close Safari and open the app from the home screen icon instead.", "Go to Settings and tap <b>Notifications</b>, then allow.", "The row should change to say alerts arrive with the app closed. Tap it once more to send yourself a test.", "One catch: the home screen copy has its own separate storage, so you may need to paste your keys and pair again there."]};
+
+const STEPS = [
+  {
+    id: "cf", t: "Make a Cloudflare worker",
+    b: `Sign up at Cloudflare — free, no card. Then <b>Compute (Workers)</b>, <b>Create</b>, <b>Start with Hello World</b>. Name it <b>onmyway-auth</b> and deploy. Open <b>Edit code</b>, delete what's there, paste in the worker code, deploy again.<br><br>Copy the address it gives you ending in <b>.workers.dev</b> and paste it into Connection keys — no slash on the end.`,
+    links: [["Open Cloudflare", "https://dash.cloudflare.com"], ["Connection keys", "#keys"]],
+    test: async () => {
+      if (!hasWorker()) return { ok: false, msg: "No worker address saved yet." };
+      try {
+        const r = await fetch(workerBase() + "/pubkey");
+        if (!r.ok) throw 0;
+        return { ok: true, msg: "Worker is answering." };
+      } catch (e) { return { ok: false, msg: "Couldn't reach it. Check there's no /callback on the end." }; }
+    }
+  },
+  {
+    id: "kv", t: "Give the worker storage",
+    b: `In Cloudflare: <b>Storage & Databases</b>, <b>KV</b>, create one called <b>omw</b>. Then your worker, <b>Settings</b>, <b>Bindings</b>, add a KV namespace using the variable name below. It has to be capitals.`,
+    copies: [["Variable name", "OMW"]],
+    links: [["Open Cloudflare", "https://dash.cloudflare.com"]],
+    test: async () => ({ ok: true, msg: "Can't see this from here — if push fails later, check the name is exactly OMW." })
+  },
+  {
+    id: "gc", t: "Make a Google project",
+    b: `Sign in to Google Cloud and create a project. Then under <b>APIs & Services</b>, <b>Library</b>, switch on: Google Calendar API, Gmail API, and Google Classroom API.`,
+    links: [["Google Cloud", "https://console.cloud.google.com"], ["API library", "https://console.cloud.google.com/apis/library"]],
+    test: async () => ({ ok: true, msg: "Can't check this from here. If pairing fails later, come back to it." })
+  },
+  {
+    id: "consent", t: "Set up the consent screen",
+    b: `Under <b>Google Auth Platform</b>: choose <b>External</b>, add your own email as a <b>test user</b>, then under <b>Data Access</b> use <b>Add or remove scopes</b> and paste all four below into the manual box.`,
+    copies: [["The four scopes", () => SCOPELIST]],
+    links: [["Test users", "https://console.cloud.google.com/auth/audience"], ["Scopes", "https://console.cloud.google.com/auth/scopes"]],
+    test: async () => ({ ok: true, msg: "Google blocks anyone not listed as a test user, so don't skip that part." })
+  },
+  {
+    id: "oauth", t: "Create the sign-in credentials",
+    b: `<b>Credentials</b>, <b>Create credentials</b>, <b>OAuth client ID</b>, type <b>Web application</b>. Put the first value under <b>Authorised JavaScript origins</b> and the second under <b>Authorised redirect URIs</b>. Then copy the client ID into Connection keys.`,
+    copies: [
+      ["JavaScript origin", () => myOrigin()],
+      ["Redirect URI", () => (hasWorker() ? workerBase() + "/callback" : "save your worker address first")]
+    ],
+    links: [["Credentials", "https://console.cloud.google.com/apis/credentials"], ["Connection keys", "#keys"]],
+    test: async () => {
+      const c = clientId();
+      if (!c) return { ok: false, msg: "No client ID saved yet." };
+      if (/^https?:/i.test(c)) return { ok: false, msg: "Safari stuck http:// on the front. Delete that part." };
+      if (!/\.apps\.googleusercontent\.com$/.test(c)) return { ok: false, msg: "That should end in .apps.googleusercontent.com" };
+      return { ok: true, msg: "Client ID looks right." };
+    }
+  },
+  {
+    id: "vars", t: "Tell the worker its secrets",
+    b: `Cloudflare, your worker, <b>Settings</b>, <b>Variables</b>. Add all four. The client secret sits on the same Google page as the client ID — if it's hidden, add a new one. Make the secret and SECRET into <b>Secret</b> type rather than Text, then deploy.`,
+    copies: [
+      ["GOOGLE_CLIENT_ID", () => clientId() || "your client ID"],
+      ["ALLOWED_ORIGIN", () => myOrigin()],
+      ["SECRET — invent one, or take this", () => "omw-" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)]
+    ],
+    links: [["Cloudflare", "https://dash.cloudflare.com"], ["Google credentials", "https://console.cloud.google.com/apis/credentials"]],
+    test: async () => {
+      if (!hasWorker()) return { ok: false, msg: "Save the worker address first." };
+      try {
+        const t = await (await fetch(workerBase() + "/")).text();
+        if (t.indexOf("Not configured") >= 0) return { ok: false, msg: "The worker says a variable is still missing." };
+        return { ok: true, msg: "Worker is configured." };
+      } catch (e) { return { ok: false, msg: "Couldn't reach the worker." }; }
+    }
+  },
+  {
+    id: "push", t: "Turn on background alerts",
+    b: `Open your worker address with <b>/vapid</b> on the end, once only — it makes fresh keys every visit. Save both values as variables, the private one as a <b>Secret</b>, and deploy. Then <b>Settings</b>, <b>Triggers</b>, add the cron trigger below.`,
+    copies: [["Cron trigger", "* * * * *"], ["VAPID_SUBJECT", "mailto:you@example.com"]],
+    links: [["Make the keys", () => (hasWorker() ? workerBase() + "/vapid" : "https://dash.cloudflare.com")]],
+    test: async () => {
+      if (!hasWorker()) return { ok: false, msg: "Save the worker address first." };
+      try {
+        const d = await (await fetch(workerBase() + "/pubkey")).json();
+        return d.key ? { ok: true, msg: "Push keys are in place." } : { ok: false, msg: "VAPID_PUBLIC isn't saved yet." };
+      } catch (e) { return { ok: false, msg: "Couldn't reach the worker." }; }
+    }
+  },
+  {
+    id: "pair", t: "Pair it up",
+    b: `With both values in Connection keys, pair Google and allow location. Google will warn that the app isn't verified — that's normal while it's in testing, and it's your own project. Choose <b>Advanced</b> and carry on.`,
+    links: [["Connection keys", "#keys"], ["Settings", "#set"]],
+    test: async () => {
+      if (!ACCOUNTS.length && !S.vault.length) return { ok: false, msg: "Google isn't paired yet." };
+      if (!S.paired.location) return { ok: false, msg: "Paired, but location is off — departure times need it." };
+      return { ok: true, msg: "Paired" + (ACCOUNTS[0] ? " as " + ACCOUNTS[0].email : "") + "." };
+    }
+  },
+  {
+    id: "home", t: "Put it on your home screen",
+    b: `In Safari, <b>Share</b>, then <b>Add to Home Screen</b>. This is what lets alerts reach you with the app closed — a browser tab can't. Open it from the home screen afterwards and allow notifications.`,
+    test: async () => {
+      const installed = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone;
+      if (!installed) return { ok: false, msg: "Still running as a browser tab." };
+      if (!PUSHOK) return { ok: false, msg: "Installed, but notifications aren't on yet." };
+      return { ok: true, msg: "Installed, and background alerts are live." };
+    }
+  }
+];
+
+function myOrigin() { return location.origin; }
+
+let STEPMSG = {}, STEPOPEN = {};
+function toggleStep(id) { STEPOPEN[id] = !STEPOPEN[id]; Sound.tap(); openSetup(); }
+function openSetup() {
+  Sound.open();
+  const body = STEPS.map((s, i) => {
+    const done = S.setup[s.id], m = STEPMSG[s.id];
+    const copies = (s.copies || []).map(([label, v], ci) => {
+      const val = typeof v === "function" ? v() : v;
+      return `<div class="copyrow"><code>${esc(val)}</code><button onclick="copyStep(${i},${ci})">Copy</button></div>
+        <div class="caplbl">${esc(label)}</div>`;
+    }).join("");
+    const links = (s.links || []).map(([label, u]) => {
+      const href = typeof u === "function" ? u() : u;
+      if (href === "#keys") return `<button onclick="closeSheet();setTimeout(openKeys,320)">${esc(label)}</button>`;
+      if (href === "#set") return `<button onclick="closeSheet();go('set')">${esc(label)}</button>`;
+      return `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+    }).join("");
+    return `<div class="step${done ? " done" : ""}">
+      <div class="step-h"><div class="step-n">${done ? "&#10003;" : i + 1}</div><div class="step-t">${esc(s.t)}</div></div>
+      <div class="step-b">${s.b}</div>
+      ${copies}
+      ${STEPOPEN[s.id] ? `<div class="step-d">${(STEPDETAIL[s.id] || []).map((line, li) =>
+        `<div class="dline"><span class="dnum">${li + 1}</span><span>${line}</span></div>`).join("")}</div>` : ""}
+      <div class="step-go">${links}
+        <button onclick="toggleStep('${s.id}')">${STEPOPEN[s.id] ? "Hide the detail" : "Show me exactly"}</button>
+        <button class="check" onclick="checkStep('${s.id}')">Check</button></div>
+      ${m ? `<div class="step-msg ${m.ok ? "ok" : "bad"}">${esc(m.msg)}</div>` : ""}
+    </div>`;
+  }).join("");
+  const done = STEPS.filter(s => S.setup[s.id]).length;
+  sheet(`<div class="eyebrow" style="margin-top:0">Setup</div><h2>Run this on your own accounts</h2>
+    <div class="note" style="margin:6px 0 14px">${done} of ${STEPS.length} done. Everything lives on accounts you own — your calendar and mail never pass through anyone else's server, including whoever sent you the link.</div>
+    ${body}
+    <div class="note" style="margin-top:6px">About half an hour. Nothing here costs anything, and nothing asks for a card.</div>
+    <div style="height:16px"></div>`);
+}
+
+async function copyStep(i, ci) {
+  const v = STEPS[i].copies[ci][1];
+  const val = String(typeof v === "function" ? v() : v);
+  try { await navigator.clipboard.writeText(val); Sound.on(); toast("Copied"); }
+  catch (e) { toast("Press and hold the box to copy it"); }
+}
+
+async function checkStep(id) {
+  const s = STEPS.find(x => x.id === id); if (!s) return;
+  Sound.tap();
+  STEPMSG[id] = { ok: false, msg: "Checking…" };
+  openSetup();
+  let r;
+  try { r = await s.test(); } catch (e) { r = { ok: false, msg: "Something went wrong checking that." }; }
+  STEPMSG[id] = r;
+  if (r.ok) { S.setup[id] = true; save(); Sound.on(); } else Sound.off();
+  openSetup();
+  renderSettings();
 }
 
 /* ---------- TUTORIAL ---------- */
@@ -2993,66 +3306,12 @@ document.addEventListener("click", e => {
 ["pointerdown", "keydown"].forEach(ev =>
   document.addEventListener(ev, () => Sound.prime(), { once: true, passive: true }));
 $("ver").textContent = "v" + VERSION;
-/* three taps on the version number forces a fresh copy from GitHub */
-(function versionTap() {
-  const el = $("ver");
-  let n = 0, t = 0;
-  el.addEventListener("click", () => {
-    const now = Date.now();
-    n = (now - t < 1200) ? n + 1 : 1;
-    t = now;
-    if (n === 2) toast("Tap once more to force an update");
-    if (n >= 3) { n = 0; forceUpdate(); }
-  });
-})();
-
-let SWREG = null, BG = false, INSTALL = null;
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (SCREEN === "set") renderSettings(); });
-function installApp() {
-  if (INSTALL) { INSTALL.prompt(); INSTALL = null; return; }
-  if (BG) { toast("Already on — alerts arrive with the app closed"); return; }
-  toast("Open your browser menu and choose Add to Home Screen");
-}
-async function initSW() {
-  if (!("serviceWorker" in navigator)) return;
-  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
-  try {
-    SWREG = await navigator.serviceWorker.register("./sw.js");
-    navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open) openDetail(e.data.open); });
-    if ("periodicSync" in SWREG) {
-      try {
-        const st = await navigator.permissions.query({ name: "periodic-background-sync" });
-        if (st.state === "granted") { await SWREG.periodicSync.register("omw-check", { minInterval: 15 * 60000 }); BG = true; }
-      } catch (e) {}
-    }
-    if (S.paired.notifications) enablePush().then(() => renderSettings());
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden && SWREG && SWREG.active) SWREG.active.postMessage("check");
-      if (!document.hidden && SWREG) SWREG.update().catch(() => {});
-    });
-    SWREG.update().catch(() => {});
-    SWREG.addEventListener("updatefound", () => {
-      const w = SWREG.installing;
-      if (!w) return;
-      w.addEventListener("statechange", () => {
-        if (w.state === "installed" && navigator.serviceWorker.controller) {
-          toast("New version ready — tap the version number to load it");
-        }
-      });
-    });
-  } catch (e) { console.warn("sw", e); }
-}
-
-function dropSplash() {
-  const sp = document.getElementById("splash");
-  if (!sp) return;
-  setTimeout(() => {
-    sp.classList.add("gone");
-    setTimeout(() => sp.remove(), 460);
-  }, 1050);
-}
-
 (async function boot() {
+  applyLook();
+  try {
+    if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", () => { if (S.look.theme === "auto") applyLook(); });
+  } catch (e) {}
   dropSplash();
   if (readSetupLink()) setTimeout(() => toast("Ready — open Settings and tap Pair"), 1500);
   initSW();
