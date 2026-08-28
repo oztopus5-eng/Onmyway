@@ -1,6 +1,6 @@
 /* On My Way — service worker
    Two jobs: keep the app openable offline, and deliver alerts when the tab is closed. */
-const CACHE = "omw-v1.12.0";
+const CACHE = "omw-v1.12.1";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {

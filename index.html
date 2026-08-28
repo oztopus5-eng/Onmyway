@@ -199,17 +199,9 @@ h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;lett
 .group{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
 .rowwrap{border-bottom:1px solid var(--line)}
 .rowwrap:last-child{border-bottom:0}
-.row{display:flex;align-items:center;gap:13px;padding:14px 15px;border-bottom:1px solid var(--line);width:100%;text-align:left}
 .rowwrap .row{border-bottom:0}
+.row{display:flex;align-items:center;gap:13px;padding:14px 15px;border-bottom:1px solid var(--line);width:100%;text-align:left}
 .row:last-child{border-bottom:0}
-.rowi{
-  width:22px;height:22px;border-radius:50%;flex:none;
-  background:var(--line);color:var(--muted);
-  font:700 12px/1 "Bricolage Grotesque",Inter,serif;
-  display:grid;place-items:center;transition:background .18s,color .18s,transform .12s;
-}
-.rowi.on{background:var(--iris);color:#fff}
-.rowi:active{transform:scale(.85)}
 .row-s.open{
   padding:0 15px 13px 59px;font-size:12.5px;color:var(--muted);line-height:1.5;
   animation:rise .26s cubic-bezier(.2,.7,.3,1) both;
@@ -610,7 +602,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.12.0";
+const VERSION = "1.12.1";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -2923,43 +2915,19 @@ async function saveNew() {
 }
 
 /* ---------- SETTINGS ---------- */
-let ROWN = 0;
-const SHOWSUB = {};
-/**
- * The small grey line under each title was making settings look busier than it
- * is, so it's folded away behind the little i. Tapping the row still does the
- * thing; tapping the i just tells you more.
- */
 function row(ico, title, sub, right, click) {
-  const id = "r" + (++ROWN);
-  const open = SHOWSUB[title];
-  return `<div class="rowwrap">
-    <div class="row${click ? " tappable" : ""}">
-      <button class="row-ico"${click ? ` onclick="${click}"` : ""}>${ICONS[ico]}</button>
-      <button class="row-txt"${click ? ` onclick="${click}"` : ""}><div class="row-t">${title}</div></button>
-      ${sub ? `<button class="rowi${open ? " on" : ""}" onclick="tellMore(${JSON.stringify(title).replace(/"/g, "&quot;")})" aria-label="More">i</button>` : ""}
-      ${right}
-    </div>
-    ${open && sub ? `<div class="row-s open">${sub}</div>` : ""}
+  return `<button class="row" ${click ? `onclick="${click}"` : ""}>
+    <div class="row-ico">${ICONS[ico]}</div>
+    <div class="row-txt"><div class="row-t">${title}</div>${sub ? `<div class="row-s">${sub}</div>` : ""}</div>${right}</button>`;
+}
+function rowCfg(ico, title, sub, isOn, toggle, open) {
+  return `<div class="row" style="padding-right:15px">
+    <button class="row-ico" onclick="${open}">${ICONS[ico]}</button>
+    <button class="row-txt" onclick="${open}" style="text-align:left"><div class="row-t">${title}</div>${sub ? `<div class="row-s">${sub}</div>` : ""}</button>
+    <button class="sw${isOn ? " on" : ""}" onclick="${toggle}" aria-label="toggle"></button>
   </div>`;
 }
-function tellMore(title) {
-  SHOWSUB[title] = !SHOWSUB[title];
-  Sound.tap();
-  if ($("sheetHost").innerHTML) { const f = LASTSHEET; if (f) f(); }
-  renderSettings();
-}
-let LASTSHEET = null;
 const hhmm = f => { const h24 = Math.floor(f), m = Math.round((f % 1) * 60); return (h24 % 12 || 12) + (m ? ":" + String(m).padStart(2, "0") : "") + (h24 >= 12 ? "pm" : "am"); };
-function rowCfg(ico, title, sub, isOn, toggle, open) {
-  const shown = SHOWSUB[title];
-  return `<div class="rowwrap"><div class="row" style="padding-right:15px">
-    <button class="row-ico" onclick="${open}">${ICONS[ico]}</button>
-    <button class="row-txt" onclick="${open}" style="text-align:left"><div class="row-t">${title}</div></button>
-    ${sub ? `<button class="rowi${shown ? " on" : ""}" onclick="tellMore(${JSON.stringify(title).replace(/"/g, "&quot;")})" aria-label="More">i</button>` : ""}
-    <button class="sw${isOn ? " on" : ""}" onclick="${toggle}" aria-label="toggle"></button>
-  </div>${shown && sub ? `<div class="row-s open">${sub}</div>` : ""}</div>`;
-}
 const sw = on => `<div class="sw${on ? " on" : ""}"></div>`;
 const pill = (on, y, n) => `<div class="pill${on ? "" : " no"}">${on ? y : n}</div>`;
 
@@ -3025,6 +2993,8 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.12.1", "26 Aug 2026", ["Fixed the buttons in settings — splitting each row apart for the little i had stopped Erase and the rest from being tappable",
+                             "Removed the little i marks"]],
   ["1.12.0", "26 Aug 2026", ["Your devices keep each other in step — tick something off on one and it clears on the other, feeds and pinned places carry across, and you won't be buzzed twice for the same thing",
                              "Settings only shows the small print when you tap the i, so the list stays clean",
                              "Erasing everything now spells out exactly what goes, with a straight yes or no",
