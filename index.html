@@ -324,6 +324,11 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 .tut-step{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--iris);margin-bottom:12px}
 .tut-h{font-size:31px;line-height:1.08;margin-bottom:14px}
 .tut-p{font-size:15.5px;color:var(--muted);line-height:1.55;margin:0}
+.tut-hint{
+  margin-top:16px;padding:13px 15px;background:var(--iris-soft);border-radius:14px;
+  font-size:13px;line-height:1.55;color:var(--iris);
+}
+.tut-hint b{font-weight:700}
 .tut-foot{padding:0 26px calc(30px + var(--safe-b));max-width:520px;margin:0 auto;width:100%;display:flex;align-items:center;gap:14px}
 .dots{display:flex;gap:7px;flex:1}
 .tdot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:width .34s cubic-bezier(.3,1.2,.4,1),background .3s,border-radius .3s}
@@ -368,6 +373,9 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 #pairfx.ok .pf-check{animation:pfPop .5s .22s cubic-bezier(.3,1.6,.5,1) forwards}
 @keyframes pfPop{to{opacity:1;transform:scale(1)}}
 .pf-label{font-size:15px;color:var(--muted);text-align:center;padding:0 30px;line-height:1.45;min-height:44px}
+.pf-esc{font-size:12px;color:var(--muted);opacity:0;animation:pfEsc .4s 3.5s forwards}
+@keyframes pfEsc{to{opacity:.75}}
+#pairfx.ok .pf-esc{display:none}
 .pf-label b{display:block;font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.02em;margin-bottom:4px}
 
 /* ---------- map ---------- */
@@ -567,7 +575,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.11.4";
+const VERSION = "1.11.5";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -1126,7 +1134,7 @@ const workerBase = () => ((S.keys.workerUrl || "").trim() || BUILT_IN.workerUrl)
 
 /** Hand the browser off to the worker, which handles Google and sends us back. */
 function pairViaWorker() {
-  showPairing("google", "Handing you to Google…");
+  showPairing("google", "Handing you to Google…", 12000);
   const back = location.href.split("#")[0];
   location.href = workerBase() + "/start?app=" + encodeURIComponent(back);
 }
@@ -2417,8 +2425,13 @@ function demoPair(kind) {
   setTimeout(() => endPairing(true, "nothing was actually connected"), 1700);
 }
 
-let PAIRING = false;
-function showPairing(kind, line) {
+let PAIRING = false, pairTimer = null;
+function showPairing(kind, line, waitMs) {
+  clearTimeout(pairTimer);
+  // whatever happens, this screen lets go of you
+  pairTimer = setTimeout(() => {
+    if (PAIRING) endPairing(false, "That took too long. Nothing was changed — have another go.");
+  }, waitMs || 30000);
   const a = PAIRART[kind] || PAIRART.google;
   const el = $("pairfx");
   el.className = "";
@@ -2432,11 +2445,14 @@ function showPairing(kind, line) {
           aria-hidden="true"><path d="m11 25 9 9 17-19"/></svg></div>
       </div>
     </div>
-    <div class="pf-label">${line || "Connecting to " + a.name + "…"}</div>`;
+    <div class="pf-label">${line || "Connecting to " + a.name + "…"}</div>
+    <div class="pf-esc">Tap anywhere to stop</div>`;
+  el.onclick = () => { if (PAIRING && !el.classList.contains("ok")) endPairing(false, "Cancelled."); };
   document.body.style.overflow = "hidden";
   PAIRING = true;
 }
 function endPairing(ok, line) {
+  clearTimeout(pairTimer);
   if (!PAIRING) return;
   const el = $("pairfx");
   if (ok) {
@@ -2844,6 +2860,8 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.11.5", "26 Aug 2026", ["The tutorial now shows exactly how to add it to your home screen, and where to go to connect things",
+                             "A pairing screen that can't finish now gives up on its own, and you can tap to stop it"]],
   ["1.11.4", "26 Aug 2026", ["Dark mode has a dark background now — the page behind the app was still white"]],
   ["1.11.3", "26 Aug 2026", ["Dark mode covers everything now, including maps, and reads far more clearly",
                              "Settings panels change in place instead of blinking shut and reopening"]],
@@ -3303,7 +3321,8 @@ const TUT = [
   { art: leaveArt(), t: "Leave by, not starts at", p: "It measures the real road route to where you're going, adds a few minutes of slack, and shows you when to walk out the door." },
   { art: nightArt(), t: "No 3am homework alerts", p: "An assignment posted at 3am is still due tomorrow. You'll hear about it at six the evening before, when you can actually do something about it." },
   { art: mailArt(), t: "It reads the plan out of your mail", p: "Someone suggests a time, you write back that it works, and it lands on your schedule on its own. Anything it isn't sure about waits for your yes." },
-  { art: pairArt(), t: "One thing to pair", p: "Connect Google and allow location. Maps, routes and traffic timing come free and switch themselves on. Add it to your home screen and alerts reach you with the app closed." }
+  { art: installArt(), t: "Put it on your home screen", p: "Tap the share button in Safari — the square with an arrow — then scroll down to Add to Home Screen. Do this first: it's the only way alerts can reach you when the app is closed.", installStep: true },
+  { art: pairArt(), t: "Now connect your calendar", p: "Open the app from your home screen, tap the gear at the top right, and start with Google. Everything you need is in there, and each step tells you what to do.", pairStep: true }
 ];
 function ringArt() {
   return `<svg viewBox="0 0 160 160" width="160" height="160"><circle cx="80" cy="80" r="62" fill="none" stroke="var(--line)" stroke-width="11"/>
@@ -3334,6 +3353,25 @@ function nightArt() {
   <path d="M62 40 Q110 18 150 56" stroke="var(--iris)" stroke-width="2" fill="none" stroke-dasharray="4 4"/>
   <path d="m146 50 5 7-8 2" fill="var(--iris)"/></svg>`;
 }
+function installArt() {
+  return `<svg viewBox="0 0 220 150" width="220" height="150">
+  <rect x="62" y="8" width="96" height="130" rx="14" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+  <rect x="74" y="24" width="72" height="16" rx="6" fill="var(--line)"/>
+  <g transform="translate(102,58)">
+    <rect x="-14" y="4" width="28" height="22" rx="4" fill="none" stroke="var(--iris)" stroke-width="2.4"/>
+    <path d="M0 16V-6" stroke="var(--iris)" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="m-6 0 6-6 6 6" fill="none" stroke="var(--iris)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="110" y="108" text-anchor="middle" font-family="Inter" font-weight="700" font-size="10" letter-spacing="1" fill="var(--muted)">SHARE</text>
+  <rect x="86" y="116" width="48" height="12" rx="4" fill="var(--iris-soft)"/>
+  <path d="M175 74h22" stroke="var(--line)" stroke-width="2"/>
+  <rect x="182" y="52" width="30" height="44" rx="8" fill="var(--iris-soft)" stroke="var(--iris)" stroke-width="1.6"/>
+  <circle cx="197" cy="70" r="8" fill="none" stroke="var(--iris)" stroke-width="2.6"/>
+  <circle cx="197" cy="70" r="2.4" fill="var(--iris)"/>
+  <text x="197" y="90" text-anchor="middle" font-family="Inter" font-weight="700" font-size="7" fill="var(--iris)">HOME</text>
+  <path d="M20 74h26" stroke="var(--line)" stroke-width="2"/>
+  <text x="33" y="66" text-anchor="middle" font-family="Inter" font-weight="600" font-size="9" fill="var(--muted)">Safari</text></svg>`;
+}
 function mailArt() {
   return `<svg viewBox="0 0 220 140" width="220" height="140">
   <rect x="16" y="26" width="120" height="52" rx="10" fill="var(--card)" stroke="var(--line)"/>
@@ -3363,11 +3401,16 @@ function startTutorial(replay) {
 }
 function drawTut(dir) {
   const s = TUT[TI];
+  const extra = s.installStep
+    ? `<div class="tut-hint">Using Chrome? Open the same page in Safari first — only Safari can add it.<br>Already added it? Carry on.</div>`
+    : s.pairStep
+    ? `<div class="tut-hint">You'll find it under <b>Settings</b>, then <b>Google</b>. If you're setting this up on your own accounts, open <b>Set this up as your own</b> in there — it walks you through the whole thing and checks each step.</div>`
+    : "";
   $("tut").style.setProperty("--td", dir || 1);
   $("tut").innerHTML = `<div class="tut-in" style="animation:tutIn .34s cubic-bezier(.2,.7,.3,1) both">
     <div class="tut-art">${s.art}</div>
     <div class="tut-step">Step ${TI + 1} of ${TUT.length}</div>
-    <h1 class="tut-h">${s.t}</h1><p class="tut-p">${s.p}</p></div>
+    <h1 class="tut-h">${s.t}</h1><p class="tut-p">${s.p}</p>${extra}</div>
     <div class="tut-foot">
       <div class="dots">${TUT.map((_, i) => `<div class="tdot${i === TI ? " on" : ""}"></div>`).join("")}</div>
       ${TI > 0 ? `<button class="btn ghost" onclick="tutStep(-1)">Back</button>` : ""}
