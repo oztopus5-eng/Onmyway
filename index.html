@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FCF7F6">
+<meta name="color-scheme" content="light dark">
 <title>On My Way</title>
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
@@ -36,7 +37,8 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .leaflet-container,#mapbox,#mapfull{touch-action:auto}
-html,body{margin:0;padding:0}
+html,body{margin:0;padding:0;background:var(--paper)}
+html{min-height:100%}
 body{
   background:var(--paper);
   color:var(--ink);
@@ -448,25 +450,73 @@ label.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:upp
 @keyframes spUp{to{opacity:1;transform:none}}
 
 html[data-theme="dark"]{
-  --paper:#171214; --card:#211A1D; --ink:#F3E9E7; --muted:#A79598; --line:#33272B;
-  --iris:#E5817A; --iris-soft:#3B2729; --mint:#7FBBA3; --mint-soft:#22322C;
-  --amber:#DDA76A; --amber-soft:#332818; --coral:#E9736A; --coral-soft:#3B2422;
-  --shadow:0 1px 2px rgba(0,0,0,.30), 0 8px 24px rgba(0,0,0,.28);
-  --shadow-lg:0 2px 6px rgba(0,0,0,.34), 0 20px 48px rgba(0,0,0,.42);
+  color-scheme:dark;
+  --paper:#141011;
+  --card:#201A1B;
+  --ink:#F8F1F0;
+  --muted:#BCA9AC;
+  --line:#3B2E31;
+  --iris:#F0908A;
+  --iris-soft:#3E2A2C;
+  --mint:#8CC9AF;
+  --mint-soft:#24352E;
+  --amber:#E6B478;
+  --amber-soft:#382C1D;
+  --coral:#F5837A;
+  --coral-soft:#3F2523;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.34);
+  --shadow-lg:0 2px 6px rgba(0,0,0,.45), 0 20px 48px rgba(0,0,0,.55);
 }
-html[data-theme="dark"] .topbar{background:rgba(23,18,20,.86)}
-html[data-theme="dark"] .day.dim{color:#5E4C50}
-html[data-theme="dark"] #ver{color:#5E4C50}
-html[data-theme="dark"] .t-game{background:#2C2226;color:var(--muted)}
-html[data-theme="dark"] .pill.quiet{background:#2C2226}
-html[data-theme="dark"] .sw{background:#3B2E32}
-html[data-theme="dark"] #toast{background:#F3E9E7;color:#171214}
-html[data-theme="dark"] .leaflet-tile{filter:brightness(.75) contrast(1.06)}
-html[data-theme="dark"] .rel-d{color:#6B565A}
-html[data-theme="dark"] .copyrow{background:#171214}
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] #app,
+html[data-theme="dark"] #splash,
+html[data-theme="dark"] #tut{background:#141011}
+html[data-theme="dark"] .screen{background:transparent}
+html[data-theme="dark"] .topbar{background:rgba(20,16,17,.88)}
+html[data-theme="dark"] .day.dim{color:#6B5459}
+html[data-theme="dark"] #ver{color:#6B5459}
+html[data-theme="dark"] .t-game{background:#2E2427;color:var(--muted)}
+html[data-theme="dark"] .pill.quiet{background:#2E2427;color:var(--muted)}
+html[data-theme="dark"] .sw{background:#423438}
+html[data-theme="dark"] .sw::after{background:#EFE4E3}
+html[data-theme="dark"] #toast{background:#F8F1F0;color:#141011}
+html[data-theme="dark"] .scrim{background:rgba(0,0,0,.6)}
+html[data-theme="dark"] .rel-d{color:#7A6165}
+html[data-theme="dark"] .copyrow{background:#141011}
+html[data-theme="dark"] .field{background:#191415}
+html[data-theme="dark"] .empty{background:var(--card)}
+/* the two gradients were tuned for a white page */
+html[data-theme="dark"] .btn{
+  background:linear-gradient(180deg,#E97C74,#D2605A);
+  box-shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.4);
+}
+html[data-theme="dark"] .pill.no{
+  background:linear-gradient(180deg,#E97C74,#D2605A);
+  box-shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.35);
+}
+html[data-theme="dark"] .pill.no.num{background:var(--iris-soft);color:var(--iris);box-shadow:none}
+html[data-theme="dark"] .btn.ghost{background:var(--card);color:var(--ink)}
+html[data-theme="dark"] .btn.danger{background:var(--coral-soft);color:var(--coral)}
+/* maps read as a bright rectangle otherwise */
+html[data-theme="dark"] .leaflet-tile{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.9)}
+html[data-theme="dark"] .leaflet-container{background:var(--card)}
+html[data-theme="dark"] .leaflet-popup-content-wrapper,
+html[data-theme="dark"] .leaflet-popup-tip{background:var(--card);color:var(--ink)}
+html[data-theme="dark"] .leaflet-control-attribution{background:rgba(20,16,17,.8);color:var(--muted)}
+html[data-theme="dark"] .leaflet-control-attribution a{color:var(--muted)}
+html[data-theme="dark"] .leaflet-bar a{background:var(--card);color:var(--ink);border-color:var(--line)}
+/* the opening and the tutorial drawings */
+html[data-theme="dark"] .pf-check{background:var(--card)}
+html[data-theme="dark"] .step.done{background:var(--mint-soft)}
 html[data-size="big"]{font-size:17.5px}
 html[data-size="small"]{font-size:14.5px}
 html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]),
+  html:not([data-theme]) body { background:#141011; color:#F8F1F0 }
+}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
@@ -517,7 +567,7 @@ html.nomotion *{animation-duration:.01ms!important;transition-duration:.01ms!imp
    A notification-timing layer: the app decides WHEN to tell you.
    Single file. No build step. Host it anywhere over HTTPS.
    ============================================================ */
-const VERSION = "1.11.2";
+const VERSION = "1.11.4";
 
 /* ============================================================
    BUILT-IN CONNECTION
@@ -2560,8 +2610,21 @@ async function openMapAll() {
 }
 
 /* ---------- SHEET ---------- */
+/**
+ * If a sheet is already open, swap its contents rather than tearing it down
+ * and animating a new one in — otherwise every toggle makes the panel blink.
+ * Scroll position is kept so you stay where you were.
+ */
 function sheet(html) {
-  $("sheetHost").innerHTML = `<div class="scrim" onclick="closeSheet()"></div><div class="sheet"><div class="grab"></div>${html}</div>`;
+  const host = $("sheetHost");
+  const cur = host.querySelector(".sheet");
+  if (cur) {
+    const y = cur.scrollTop;
+    cur.innerHTML = `<div class="grab"></div>${html}`;
+    cur.scrollTop = y;
+    return;
+  }
+  host.innerHTML = `<div class="scrim" onclick="closeSheet()"></div><div class="sheet"><div class="grab"></div>${html}</div>`;
   document.body.style.overflow = "hidden";
 }
 function closeSheet() {
@@ -2781,6 +2844,9 @@ function openEmailScan() {
 }
 
 const CHANGES = [
+  ["1.11.4", "26 Aug 2026", ["Dark mode has a dark background now — the page behind the app was still white"]],
+  ["1.11.3", "26 Aug 2026", ["Dark mode covers everything now, including maps, and reads far more clearly",
+                             "Settings panels change in place instead of blinking shut and reopening"]],
   ["1.11.2", "26 Aug 2026", ["Button sounds are properly audible now",
                              "Nothing you tap can reload the page any more",
                              "Timing settings moved in with How it looks",
@@ -2901,9 +2967,10 @@ function applyLook() {
   r.setAttribute("data-size", L.size);
   r.classList.toggle("nomotion", !L.motion);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", dark ? "#171214" : "#FCF7F6");
+  if (meta) meta.setAttribute("content", dark ? "#141011" : "#FCF7F6");
 }
 function setLook(k, v) {
+  if (S.look[k] === v) return;
   S.look[k] = v; save();
   applyLook();
   (v === false ? Sound.off : Sound.on)();
@@ -3248,7 +3315,7 @@ function leaveArt() {
   return `<svg viewBox="0 0 220 150" width="220" height="150">
   <rect x="8" y="20" width="204" height="46" rx="14" fill="var(--card)" stroke="var(--line)"/>
   <text x="24" y="41" font-family="Inter" font-weight="700" font-size="10" letter-spacing="1.4" fill="var(--muted)">STARTS AT</text>
-  <text x="24" y="59" font-family="Bricolage Grotesque" font-weight="800" font-size="19" fill="#C6B0AD">3:00 PM</text>
+  <text x="24" y="59" font-family="Bricolage Grotesque" font-weight="800" font-size="19" fill="var(--muted)">3:00 PM</text>
   <rect x="8" y="80" width="204" height="52" rx="14" fill="var(--iris-soft)" stroke="var(--iris)"/>
   <text x="24" y="102" font-family="Inter" font-weight="700" font-size="10" letter-spacing="1.4" fill="var(--iris)">LEAVE BY</text>
   <text x="24" y="122" font-family="Bricolage Grotesque" font-weight="800" font-size="22" fill="var(--iris)">2:31 PM</text>
@@ -3257,13 +3324,13 @@ function leaveArt() {
 function nightArt() {
   return `<svg viewBox="0 0 220 140" width="220" height="140">
   <line x1="16" y1="96" x2="204" y2="96" stroke="var(--line)" stroke-width="2"/>
-  <rect x="16" y="60" width="70" height="36" fill="#F4ECEA" opacity=".85"/>
+  <rect x="16" y="60" width="70" height="36" fill="var(--line)" opacity=".6"/>
   <text x="51" y="116" text-anchor="middle" font-family="Inter" font-weight="600" font-size="10" fill="var(--muted)">3am</text>
-  <circle cx="51" cy="78" r="7" fill="none" stroke="#C6B0AD" stroke-width="2"/>
-  <line x1="45" y1="84" x2="57" y2="72" stroke="#C6B0AD" stroke-width="2"/>
+  <circle cx="51" cy="78" r="7" fill="none" stroke="var(--muted)" stroke-width="2"/>
+  <line x1="45" y1="84" x2="57" y2="72" stroke="var(--muted)" stroke-width="2"/>
   <text x="160" y="116" text-anchor="middle" font-family="Inter" font-weight="600" font-size="10" fill="var(--iris)">6pm</text>
   <circle cx="160" cy="78" r="9" fill="var(--iris)"/>
-  <path d="M156 78l3 3 6-6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M156 78l3 3 6-6" stroke="var(--card)" stroke-width="2" fill="none" stroke-linecap="round"/>
   <path d="M62 40 Q110 18 150 56" stroke="var(--iris)" stroke-width="2" fill="none" stroke-dasharray="4 4"/>
   <path d="m146 50 5 7-8 2" fill="var(--iris)"/></svg>`;
 }
@@ -3282,7 +3349,7 @@ function mailArt() {
 function pairArt() {
   const c = ["var(--iris)", "var(--mint)", "var(--amber)", "var(--coral)"];
   return `<svg viewBox="0 0 200 140" width="200" height="140">
-  <circle cx="100" cy="70" r="26" fill="var(--iris)"/><text x="100" y="76" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="17" fill="#fff">OMW</text>
+  <circle cx="100" cy="70" r="26" fill="var(--iris)"/><text x="100" y="76" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="17" fill="var(--card)">OMW</text>
   ${[[30, 30], [170, 30], [30, 112], [170, 112]].map((p, i) => `<line x1="100" y1="70" x2="${p[0]}" y2="${p[1]}" stroke="var(--line)" stroke-width="2"/><circle cx="${p[0]}" cy="${p[1]}" r="15" fill="var(--card)" stroke="${c[i]}" stroke-width="2.5"/>`).join("")}</svg>`;
 }
 let TI = 0, TUTBUSY = false;
